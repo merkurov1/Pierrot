@@ -8,7 +8,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { fonts, palette, radius, spacing } from '@/constants/theme';
+import { fonts, radius, spacing, ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/theme/ThemeContext';
 
 type Props = {
   label: string;
@@ -27,6 +28,8 @@ export function ActionButton({
   variant = 'solid',
   style,
 }: Props) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const inactive = disabled || loading;
 
   return (
@@ -46,7 +49,7 @@ export function ActionButton({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'solid' ? palette.inverseText : palette.textSecondary}
+          color={variant === 'solid' ? colors.inverseText : colors.textSecondary}
         />
       ) : (
         <Text
@@ -61,7 +64,8 @@ export function ActionButton({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => {
+  return StyleSheet.create({
   base: {
     minHeight: 40,
     paddingHorizontal: spacing.md,
@@ -70,11 +74,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   solid: {
-    backgroundColor: palette.text,
+    backgroundColor: colors.text,
   },
   outline: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.lineStrong,
+    borderColor: colors.lineStrong,
   },
   quiet: {
     backgroundColor: 'transparent',
@@ -92,9 +96,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   labelSolid: {
-    color: palette.inverseText,
+    color: colors.inverseText,
   },
   labelQuiet: {
-    color: palette.textSecondary,
+    color: colors.textSecondary,
   },
-});
+  });
+};

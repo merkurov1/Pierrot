@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -10,10 +11,12 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useThemedStyles } from '@/theme/ThemeContext';
 import * as Crypto from 'expo-crypto';
 
 import { friendlyApiMessage, ApiError } from '@/api/client';
 import { sendPierrot } from '@/api/pierrot';
+import { createDecision } from '@/api/mobile';
 import type { PierrotHistoryItem } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { useChat } from '@/chat/ChatContext';
@@ -21,8 +24,10 @@ import type { ChatMessage } from '@/chat/types';
 import { Composer } from '@/components/chat/Composer';
 import { ConversationSidebar } from '@/components/chat/ConversationSidebar';
 import { MessageBubble } from '@/components/chat/MessageBubble';
+import { Avatar } from '@/components/ui/Avatar';
+import { PIERROT_AVATAR_SRC } from '@/config/pierrot';
 import { Screen } from '@/components/ui/Screen';
-import { fonts, layout, palette, spacing, type } from '@/constants/theme';
+import { fonts, layout, spacing, typography, ThemeColors } from '@/constants/theme';
 
 const SUGGESTIONS = [
   'What is the Digital Temple?',
@@ -46,11 +51,13 @@ function buildHistory(messages: ChatMessage[]): PierrotHistoryItem[] {
 }
 
 function ChatHeader({ compact }: { compact: boolean }) {
+  const styles = useThemedStyles(makeStyles);
   const { activeConversation, startNewConversation } = useChat();
   const { isAdmin, session } = useAuth();
 
   return (
     <View style={styles.header}>
+      <Avatar uri={PIERROT_AVATAR_SRC} name="Pierrot" size={28} />
       <View style={styles.headerText}>
         <Text style={styles.headerEyebrow}>
           {isAdmin ? 'Owner brain' : session ? 'Signed in' : 'Pierrot'}
@@ -61,6 +68,12 @@ function ChatHeader({ compact }: { compact: boolean }) {
       </View>
 
       <View style={styles.headerActions}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/search')}
+          hitSlop={8}>
+          <Text style={styles.headerAction}>Search</Text>
+        </Pressable>
         <Pressable accessibilityRole="button" onPress={startNewConversation} hitSlop={8}>
           <Text style={styles.headerAction}>New</Text>
         </Pressable>
@@ -78,8 +91,10 @@ function ChatHeader({ compact }: { compact: boolean }) {
 }
 
 function EmptyConversation({ onPrompt }: { onPrompt: (text: string) => void }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.empty}>
+      <Avatar uri={PIERROT_AVATAR_SRC} name="Pierrot" size={58} />
       <Text style={styles.emptyEyebrow}>Personal intelligence</Text>
       <Text style={styles.emptyTitle}>Pierrot</Text>
       <Text style={styles.emptyText}>
@@ -104,6 +119,7 @@ function EmptyConversation({ onPrompt }: { onPrompt: (text: string) => void }) {
 }
 
 function ChatPane({ compact }: { compact: boolean }) {
+  const styles = useThemedStyles(makeStyles);
   const {
     activeConversation,
     createConversation,
@@ -111,7 +127,7 @@ function ChatPane({ compact }: { compact: boolean }) {
     updateMessage,
     removeMessage,
   } = useChat();
-  const { consent, getAccessToken } = useAuth();
+  const { consent, getAccessToken, isAdmin } = useAuth();
 
   const [draft, setDraft] = React.useState('');
   const [sending, setSending] = React.useState(false);
@@ -132,39 +148,16 @@ function ChatPane({ compact }: { compact: boolean }) {
     });
   }, []);
 
-  const send = React.useCallback(
-    async (raw?: string) => {
-      const text = (raw ?? draft).trim();
-
-      if (!text || sendingRef.current) return;
-
-      sendingRef.current = true;
-
-      const conversation = activeConversation ?? createConversation(text);
-      const history = buildHistory(conversation.messages);
-
-      const userMessage: ChatMessage = {
-        id: Crypto.randomUUID(),
-        role: 'user',
-        content: text,
-        createdAt: new Date().toISOString(),
-        status: 'complete',
-      };
-
-      const assistantId = Crypto.randomUUID();
-
-      appendMessage(conversation.id, userMessage);
-      appendMessage(conversation.id, {
-        id: assistantId,
-        role: 'assistant',
-        content: '',
-        createdAt: new Date().toISOString(),
-        status: 'pending',
-        retryText: text,
-      });
-
-      setDraft('');
+  const performRequest = React.useCallback(
+    async (input: {
+      conversation: NonNullable<typeof activeConversation>;
+      userMessageId: string;
+      assistantId: string;
+      text: string;
+      history: PierrotHistoryItem[];
+    }) => {
       setSending(true);
+      sendingRef.current = true;
       scrollToEnd(false);
 
       const controller = new AbortController();
@@ -174,18 +167,18 @@ function ChatPane({ compact }: { compact: boolean }) {
         const token = await getAccessToken();
 
         const result = await sendPierrot({
-          message: text,
-          conversationId: conversation.id,
-          sessionId: conversation.sessionId,
-          userMessageId: userMessage.id,
-          history,
+          message: input.text,
+          conversationId: input.conversation.id,
+          sessionId: input.conversation.sessionId,
+          userMessageId: input.userMessageId,
+          history: input.history,
           consent: { state: consent, version: null },
           token,
           signal: controller.signal,
         });
 
         if (result.humanMode) {
-          updateMessage(conversation.id, assistantId, {
+          updateMessage(input.conversation.id, input.assistantId, {
             status: 'error',
             content: result.error || 'Anton is currently handling this conversation.',
             errorCode: 'HUMAN_MODE',
@@ -199,22 +192,29 @@ function ChatPane({ compact }: { compact: boolean }) {
           });
         }
 
-        updateMessage(conversation.id, assistantId, {
+        updateMessage(input.conversation.id, input.assistantId, {
           status: 'complete',
           content: result.reply,
           provider: result.provider,
           model: result.model,
           latencyMs: result.latencyMs,
+          sources: result.rag?.sources?.map((source) => ({
+            documentTitle: source.documentTitle,
+            heading: source.heading,
+            canonicalUrl: source.canonicalUrl,
+            similarity: source.similarity,
+            sourceType: source.sourceType,
+          })),
         });
       } catch (error) {
         if (error instanceof ApiError && error.code === 'ABORTED') {
-          updateMessage(conversation.id, assistantId, {
+          updateMessage(input.conversation.id, input.assistantId, {
             status: 'error',
             content: 'Response interrupted.',
             errorCode: 'ABORTED',
           });
         } else {
-          updateMessage(conversation.id, assistantId, {
+          updateMessage(input.conversation.id, input.assistantId, {
             status: 'error',
             content: friendlyApiMessage(error),
             errorCode: error instanceof ApiError ? error.code : 'UNKNOWN',
@@ -227,16 +227,111 @@ function ChatPane({ compact }: { compact: boolean }) {
         scrollToEnd();
       }
     },
-    [
-      activeConversation,
-      appendMessage,
-      consent,
-      createConversation,
-      draft,
-      getAccessToken,
-      scrollToEnd,
-      updateMessage,
-    ]
+    [consent, getAccessToken, scrollToEnd, updateMessage]
+  );
+
+  const send = React.useCallback(
+    async (raw?: string) => {
+      const text = (raw ?? draft).trim();
+
+      if (!text || sendingRef.current) return;
+
+      const conversation = activeConversation ?? createConversation(text);
+      const history = buildHistory(conversation.messages);
+      const userMessage: ChatMessage = {
+        id: Crypto.randomUUID(),
+        role: 'user',
+        content: text,
+        createdAt: new Date().toISOString(),
+        status: 'complete',
+      };
+      const assistantId = Crypto.randomUUID();
+
+      appendMessage(conversation.id, userMessage);
+      appendMessage(conversation.id, {
+        id: assistantId,
+        role: 'assistant',
+        content: '',
+        createdAt: new Date().toISOString(),
+        status: 'pending',
+        retryText: text,
+      });
+
+      setDraft('');
+      await performRequest({
+        conversation,
+        userMessageId: userMessage.id,
+        assistantId,
+        text,
+        history,
+      });
+    },
+    [activeConversation, appendMessage, createConversation, draft, performRequest]
+  );
+
+  const remember = React.useCallback(
+    async (message: ChatMessage) => {
+      const conversation = activeConversation;
+      if (!conversation) return;
+
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        await createDecision(token, {
+          kind: 'decision',
+          title: message.content.replace(/\s+/g, ' ').slice(0, 120),
+          content: message.content,
+          conversationId: conversation.id,
+          messageId: message.id,
+          project: 'Pierrot',
+        });
+        Alert.alert('Saved', 'Added to Decision Memory. Review it from Settings.');
+      } catch (requestError) {
+        Alert.alert('Could not save', friendlyApiMessage(requestError));
+      }
+    },
+    [activeConversation, getAccessToken]
+  );
+
+  const retry = React.useCallback(
+    async (errorMessage: ChatMessage) => {
+      const conversation = activeConversation;
+      const text = errorMessage.retryText?.trim();
+
+      if (!conversation || !text || sendingRef.current) return;
+
+      const userMessage = [...conversation.messages]
+        .reverse()
+        .find((message) => message.role === 'user' && message.content.trim() === text);
+
+      if (!userMessage) return;
+
+      const assistantId = Crypto.randomUUID();
+      const history = buildHistory(
+        conversation.messages.filter(
+          (message) => message.id !== userMessage.id && message.id !== errorMessage.id
+        )
+      );
+
+      removeMessage(conversation.id, errorMessage.id);
+      appendMessage(conversation.id, {
+        id: assistantId,
+        role: 'assistant',
+        content: '',
+        createdAt: new Date().toISOString(),
+        status: 'pending',
+        retryText: text,
+      });
+
+      await performRequest({
+        conversation,
+        userMessageId: userMessage.id,
+        assistantId,
+        text,
+        history,
+      });
+    },
+    [activeConversation, appendMessage, performRequest, removeMessage]
   );
 
   const messages = activeConversation?.messages ?? [];
@@ -254,12 +349,11 @@ function ChatPane({ compact }: { compact: boolean }) {
         renderItem={({ item }) => (
           <MessageBubble
             message={item}
-            onRetry={(text) => {
-              if (activeConversation) {
-                removeMessage(activeConversation.id, item.id);
-              }
-              void send(text);
+            onRetry={() => {
+              void retry(item);
             }}
+            onSendToDev={isAdmin ? () => router.push('/dev') : undefined}
+            onRemember={isAdmin ? () => void remember(item) : undefined}
           />
         )}
         ListEmptyComponent={<EmptyConversation onPrompt={(text) => void send(text)} />}
@@ -286,6 +380,7 @@ function ChatPane({ compact }: { compact: boolean }) {
 }
 
 export default function ChatScreen() {
+  const styles = useThemedStyles(makeStyles);
   const { width } = useWindowDimensions();
   const tablet = width >= layout.tablet;
 
@@ -299,14 +394,16 @@ export default function ChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => {
+  const type = typography(colors);
+  return StyleSheet.create({
   row: {
     flex: 1,
     flexDirection: 'row',
   },
   pane: {
     flex: 1,
-    backgroundColor: palette.background,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -317,7 +414,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: palette.line,
+    borderBottomColor: colors.line,
   },
   headerText: {
     flex: 1,
@@ -332,7 +429,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 26,
     letterSpacing: -0.2,
-    color: palette.text,
+    color: colors.text,
   },
   headerActions: {
     flexDirection: 'row',
@@ -344,7 +441,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    color: palette.textSecondary,
+    color: colors.textSecondary,
   },
   listContent: {
     width: '100%',
@@ -361,6 +458,7 @@ const styles = StyleSheet.create({
   empty: {
     paddingVertical: spacing.xl,
     maxWidth: 560,
+    gap: spacing.md,
   },
   emptyEyebrow: {
     ...type.label,
@@ -372,13 +470,13 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     ...type.bodySmall,
-    color: palette.textSecondary,
+    color: colors.textSecondary,
     maxWidth: 460,
   },
   suggestions: {
     marginTop: spacing.xl,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: palette.line,
+    borderTopColor: colors.line,
   },
   suggestion: {
     flexDirection: 'row',
@@ -387,21 +485,22 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: palette.line,
+    borderBottomColor: colors.line,
   },
   suggestionText: {
     flex: 1,
     fontFamily: fonts.serif,
     fontSize: 17,
     lineHeight: 23,
-    color: palette.textSecondary,
+    color: colors.textSecondary,
   },
   suggestionArrow: {
     fontFamily: fonts.sans,
     fontSize: 15,
-    color: palette.textFaint,
+    color: colors.textFaint,
   },
   pressed: {
     opacity: 0.65,
   },
-});
+  });
+};

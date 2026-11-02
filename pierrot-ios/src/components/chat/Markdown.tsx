@@ -11,7 +11,8 @@ import {
 import * as WebBrowser from 'expo-web-browser';
 
 import { absoluteSiteUrl } from '@/config/env';
-import { fonts, palette, radius, spacing, type } from '@/constants/theme';
+import { useThemedStyles } from '@/theme/ThemeContext';
+import { fonts, radius, spacing, typography, ThemeColors } from '@/constants/theme';
 
 type InlineToken =
   | { kind: 'text'; text: string }
@@ -214,6 +215,7 @@ async function openLink(href: string) {
 }
 
 function Inline({ tokens }: { tokens: InlineToken[] }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <>
       {tokens.map((token, index) => {
@@ -262,6 +264,7 @@ export function Markdown({
   content: string;
   style?: StyleProp<TextStyle>;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const blocks = React.useMemo(() => parseBlocks(content), [content]);
 
   return (
@@ -330,7 +333,9 @@ export function Markdown({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => {
+  const type = typography(colors);
+  return StyleSheet.create({
   root: {
     gap: spacing.sm,
   },
@@ -338,7 +343,7 @@ const styles = StyleSheet.create({
     ...type.body,
   },
   heading: {
-    color: palette.text,
+    color: colors.text,
     fontFamily: fonts.serif,
     letterSpacing: -0.2,
   },
@@ -370,8 +375,8 @@ const styles = StyleSheet.create({
   inlineCode: {
     fontFamily: fonts.mono,
     fontSize: 14,
-    backgroundColor: palette.surfaceRaised,
-    color: palette.text,
+    backgroundColor: colors.surfaceRaised,
+    color: colors.text,
   },
   list: {
     gap: spacing.xs,
@@ -383,7 +388,7 @@ const styles = StyleSheet.create({
   },
   bullet: {
     ...type.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
     width: 22,
   },
   listText: {
@@ -391,15 +396,15 @@ const styles = StyleSheet.create({
   },
   quote: {
     borderLeftWidth: 1,
-    borderLeftColor: palette.lineStrong,
+    borderLeftColor: colors.lineStrong,
     paddingLeft: spacing.md,
   },
   quoteText: {
-    color: palette.textSecondary,
+    color: colors.textSecondary,
     fontStyle: 'italic',
   },
   codeBlock: {
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.sm,
   },
   codeContent: {
@@ -409,6 +414,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.mono,
     fontSize: 13,
     lineHeight: 20,
-    color: palette.textSecondary,
+    color: colors.textSecondary,
   },
-});
+  });
+};

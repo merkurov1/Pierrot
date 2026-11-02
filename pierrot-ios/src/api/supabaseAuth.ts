@@ -1,3 +1,8 @@
+import { createClient } from '@supabase/supabase-js';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
+
 import { ApiError } from '@/api/client';
 import { env, isAuthConfigured } from '@/config/env';
 import type { AuthUser } from '@/api/types';
@@ -173,17 +178,49 @@ export async function requestEmailCode(email: string): Promise<void> {
 export async function verifyEmailCode(email: string, token: string): Promise<AuthSession> {
   const { url, key } = requireConfig();
 
-  const payload = await supabaseFetch(`${url}/auth/v1/verify`, {
-    method: 'POST',
-    headers: authHeaders(key),
-    body: JSON.stringify({
-      type: 'email',
-      email: email.trim(),
-      token: token.trim(),
-    }),
-  });
+  // Supabase sends a 6-digit token, but mail clients and clipboard sometimes add
+  // spaces or invisible characters. Normalise to digits before verification.
+  const digits = token.replace(/\D/g, '');
 
-  return mapSession(payload);
+  if (!digits) {
+    throw new ApiError('Enter the numeric code from the email.', {
+      code: 'INVALID_RESPONSE',
+    });
+  }
+
+  // GoTrue distinguishes signup, magiclink and email OTP token types. A code
+  // requested for an existing user is normally `email`; a code created while
+  // signing up a new user can be `signup`. A wrong type does not consume the
+  // token, so try the compatible types in order and surface the last error.
+  const candidateTypes = ['email', 'magiclink', 'signup'] as const;
+  let lastError: unknown = null;
+
+  for (const type of candidateTypes) {
+    try {
+      const payload = await supabaseFetch(`${url}/auth/v1/verify`, {
+        method: 'POST',
+        headers: authHeaders(key),
+        body: JSON.stringify({
+          type,
+          email: email.trim(),
+          token: digits,
+        }),
+      });
+
+      return mapSession(payload);
+    } catch (error) {
+      lastError = error;
+
+      if (
+        !(error instanceof ApiError) ||
+        ![400, 401, 403, 422].includes(error.status ?? 0)
+      ) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 export async function refreshAuthSession(session: AuthSession): Promise<AuthSession> {
@@ -213,4 +250,196 @@ export async function revokeAuthSession(session: AuthSession): Promise<void> {
   } catch {
     // A local sign-out must still succeed if the device is offline.
   }
+}
+
+// ---------------------------------------------------------------------------
+// OAuth / native ID token sign-in
+// ---------------------------------------------------------------------------
+
+/**
+ * Supabase's PKCE verifier is kept only for the duration of the OAuth browser
+ * ceremony. The actual access/refresh session is stored by AuthContext in
+ * SecureStore after the exchange.
+ */
+const oauthMemory = new Map<string, string>();
+
+function createOAuthClient() {
+  const { url, key } = requireConfig();
+
+  return createClient(url, key, {
+    auth: {
+      flowType: 'pkce',
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+      storage: {
+        getItem: async (name: string) => oauthMemory.get(name) ?? null,
+        setItem: async (name: string, value: string) => {
+          oauthMemory.set(name, value);
+        },
+        removeItem: async (name: string) => {
+          oauthMemory.delete(name);
+        },
+      },
+    },
+  });
+}
+
+function fromSupabaseSession(session: {
+  access_token: string;
+  refresh_token: string;
+  expires_at?: number | null;
+  expires_in?: number | null;
+  user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> | null };
+}): AuthSession {
+  return {
+    accessToken: session.access_token,
+    refreshToken: session.refresh_token,
+    expiresAt:
+      typeof session.expires_at === 'number'
+        ? session.expires_at
+        : Math.floor(Date.now() / 1000) + (session.expires_in ?? 3600),
+    user: mapUser(session.user as never),
+  };
+}
+
+export async function signInWithGoogleOAuth(): Promise<AuthSession> {
+  const client = createOAuthClient();
+  const redirectTo = Linking.createURL('auth/callback');
+
+  const { data, error } = await client.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo,
+      skipBrowserRedirect: true,
+    },
+  });
+
+  if (error || !data.url) {
+    throw new ApiError(error?.message || 'Google sign-in could not be started.', {
+      code: 'HTTP_ERROR',
+    });
+  }
+
+  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+
+  if (result.type !== 'success' || !result.url) {
+    throw new ApiError('Google sign-in was cancelled.', { code: 'ABORTED' });
+  }
+
+  const code = new URL(result.url).searchParams.get('code');
+
+  if (!code) {
+    throw new ApiError('Google sign-in returned no authorization code.', {
+      code: 'INVALID_RESPONSE',
+    });
+  }
+
+  const exchanged = await client.auth.exchangeCodeForSession(code);
+
+  if (exchanged.error || !exchanged.data.session) {
+    throw new ApiError(exchanged.error?.message || 'Google session exchange failed.', {
+      code: 'HTTP_ERROR',
+    });
+  }
+
+  return fromSupabaseSession(exchanged.data.session);
+}
+
+export async function signInWithAppleNative(): Promise<AuthSession> {
+  const available = await AppleAuthentication.isAvailableAsync();
+
+  if (!available) {
+    throw new ApiError('Sign in with Apple is not available on this device.', {
+      code: 'AUTH_NOT_CONFIGURED',
+    });
+  }
+
+  const credential = await AppleAuthentication.signInAsync({
+    requestedScopes: [
+      AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+      AppleAuthentication.AppleAuthenticationScope.EMAIL,
+    ],
+  });
+
+  if (!credential.identityToken) {
+    throw new ApiError('Apple returned no identity token.', { code: 'INVALID_RESPONSE' });
+  }
+
+  const client = createOAuthClient();
+  const { data, error } = await client.auth.signInWithIdToken({
+    provider: 'apple',
+    token: credential.identityToken,
+  });
+
+  if (error || !data.session) {
+    throw new ApiError(error?.message || 'Apple session exchange failed.', {
+      code: 'HTTP_ERROR',
+    });
+  }
+
+  const fullName = [
+    credential.fullName?.givenName,
+    credential.fullName?.middleName,
+    credential.fullName?.familyName,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  if (fullName.trim()) {
+    await client.auth.updateUser({
+      data: {
+        full_name: fullName,
+        given_name: credential.fullName?.givenName ?? null,
+        family_name: credential.fullName?.familyName ?? null,
+      },
+    });
+  }
+
+  return fromSupabaseSession(data.session);
+}
+
+/**
+ * Fallback for Supabase email templates that contain a magic link rather than
+ * (or in addition to) a 6-digit code. The user must COPY the link from the
+ * email and paste it here without opening it; opening it consumes the token in
+ * the browser.
+ *
+ * Supabase action links have the shape:
+ *   https://<project>/auth/v1/verify?token=<hashed_token>&type=magiclink&redirect_to=...
+ * The verify endpoint expects the hashed token as `token_hash`.
+ */
+export async function verifyEmailLink(link: string): Promise<AuthSession> {
+  const { url, key } = requireConfig();
+
+  let parsed: URL;
+
+  try {
+    parsed = new URL(link.trim());
+  } catch {
+    throw new ApiError('Paste the full link from the email.', { code: 'INVALID_RESPONSE' });
+  }
+
+  const tokenHash =
+    parsed.searchParams.get('token_hash') ||
+    parsed.searchParams.get('token') ||
+    parsed.searchParams.get('code');
+  const type = parsed.searchParams.get('type') || 'magiclink';
+
+  if (!tokenHash) {
+    throw new ApiError('This email link does not contain a token.', {
+      code: 'INVALID_RESPONSE',
+    });
+  }
+
+  const payload = await supabaseFetch(`${url}/auth/v1/verify`, {
+    method: 'POST',
+    headers: authHeaders(key),
+    body: JSON.stringify({
+      token_hash: tokenHash,
+      type,
+    }),
+  });
+
+  return mapSession(payload);
 }

@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useThemedStyles } from '@/theme/ThemeContext';
 
-import { layout, spacing, type } from '@/constants/theme';
+import { layout, spacing, typography, ThemeColors } from '@/constants/theme';
 
 type Props = {
   eyebrow?: string;
@@ -11,6 +12,7 @@ type Props = {
 };
 
 export function PageHeader({ eyebrow, title, subtitle, action }: Props) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.root}>
       <View style={styles.body}>
@@ -23,7 +25,9 @@ export function PageHeader({ eyebrow, title, subtitle, action }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => {
+  const type = typography(colors);
+  return StyleSheet.create({
   root: {
     width: '100%',
     maxWidth: layout.content,
@@ -53,4 +57,5 @@ const styles = StyleSheet.create({
   action: {
     paddingTop: spacing.xs,
   },
-});
+  });
+};

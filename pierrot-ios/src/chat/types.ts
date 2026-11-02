@@ -3,6 +3,13 @@ export type ChatMessageRole = 'user' | 'assistant';
 export type ChatMessageStatus = 'complete' | 'pending' | 'error';
 
 export type ChatMessage = {
+  sources?: {
+    documentTitle: string;
+    heading: string;
+    canonicalUrl: string | null;
+    similarity: number;
+    sourceType: string;
+  }[];
   id: string;
   role: ChatMessageRole;
   content: string;
@@ -20,6 +27,7 @@ export type Conversation = {
   id: string;
   sessionId: string;
   title: string;
+  pinned?: boolean;
   createdAt: string;
   updatedAt: string;
   messages: ChatMessage[];

@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { useThemedStyles } from '@/theme/ThemeContext';
 
-import { fonts, palette, radius, spacing, type } from '@/constants/theme';
+import { fonts, radius, spacing, typography, ThemeColors } from '@/constants/theme';
 
 type Props = {
   title?: string;
@@ -11,6 +12,7 @@ type Props = {
 };
 
 export function Notice({ title, message, tone = 'neutral', children }: Props) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View
       style={[
@@ -28,39 +30,43 @@ export function Notice({ title, message, tone = 'neutral', children }: Props) {
 }
 
 export function SectionLabel({ children }: React.PropsWithChildren) {
+  const styles = useThemedStyles(makeStyles);
   return <Text style={styles.sectionLabel}>{children}</Text>;
 }
 
 export function Rule() {
+  const styles = useThemedStyles(makeStyles);
   return <View style={styles.rule} />;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => {
+  const type = typography(colors);
+  return StyleSheet.create({
   root: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.lineStrong,
+    borderColor: colors.lineStrong,
     borderRadius: radius.md,
     padding: spacing.md,
-    backgroundColor: palette.backgroundElevated,
+    backgroundColor: colors.backgroundElevated,
   },
   error: {
     borderColor: '#3A2426',
-    backgroundColor: palette.dangerSurface,
+    backgroundColor: colors.dangerSurface,
   },
   success: {
     borderColor: '#243026',
   },
   title: {
     ...type.label,
-    color: palette.textSecondary,
+    color: colors.textSecondary,
     marginBottom: spacing.xs,
   },
   message: {
     ...type.bodySmall,
-    color: palette.textSecondary,
+    color: colors.textSecondary,
   },
   errorText: {
-    color: palette.danger,
+    color: colors.danger,
   },
   children: {
     marginTop: spacing.md,
@@ -74,11 +80,12 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     letterSpacing: 1.6,
     textTransform: 'uppercase',
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   rule: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: palette.line,
+    backgroundColor: colors.line,
     width: '100%',
   },
-});
+  });
+};

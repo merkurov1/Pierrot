@@ -12,6 +12,36 @@ were also performed for `/api/health`, `/api/flow/items`, `/api/auth/me` and
 
 ---
 
+## 0. Daily-use implementation update (2026-11-02)
+
+The original audit below remains the backend/API reference. The mobile client
+now additionally includes:
+
+- Light / Dark / System theme with semantic tokens and persisted preference.
+- Backend-owned Pierrot avatar; user name/avatar after sign-in.
+- Existing four tabs preserved; **Dev** added as an additive fifth tab.
+- Compact Project Pulse (conversations 7d, Brain docs, Flow 30d, subscribers)
+  and a deterministic project status from `/api/mobile/overview`.
+- Explicit local-to-server archive import and owner-scoped sync for local
+  conversation IDs; server transcript reads remain consent-gated.
+- Read-only Dev workspace backed by `/api/mobile/github/*` and
+  `/api/mobile/dev/prompts`.
+- Unified Search modal backed by `/api/mobile/search`.
+- Brain text preview/enqueue and a basic Decision Memory review screen with
+  “Remember” on chat messages.
+- Email OTP, a magic-link paste fallback, Google PKCE OAuth and native Sign in
+  with Apple paths; Passkey is deliberately blocked pending a verified native
+  WebAuthn plugin (documented in `TODO.md`).
+- Account/session controls, server-history deletion, account deletion, privacy
+  and support information.
+
+Known limits are recorded in `TODO.md`: streaming is not available on the
+backend; server-only conversations cannot be continued on another device until
+a server continuation contract exists; iOS Share Extension, camera, voice,
+widgets, push and hardware command palette are not fabricated.
+
+---
+
 ## 1. Executive summary
 
 Pierrot on the website is **not** a separate AI service. It is a Next.js App
@@ -39,8 +69,9 @@ The mobile app therefore:
 - renders a local “thinking” state while the single JSON response is pending;
 - keeps transcripts locally and sends them back as `history` (the backend has
   no public “list my conversations” endpoint);
-- uses the existing Supabase email OTP for identity, then sends the Supabase
-  bearer token to the existing backend for owner-scoped features.
+- uses the existing Supabase email OTP, Google PKCE OAuth or native Sign in
+  with Apple for identity, then sends the Supabase bearer token to the existing
+  backend for owner-scoped features.
 
 No new backend endpoint, database, Supabase project or server secret was
 created.
@@ -372,6 +403,29 @@ auth and owner Brain are disabled, and the UI says so.
 
 ---
 
+### 3.5 Daily-use mobile auth update
+
+- Email OTP remains the fallback and still uses Supabase GoTrue. If the
+  Supabase Magic Link template contains only `{{ .ConfirmationURL }}`, the user
+  can copy the link without opening it and paste it into Settings; the client
+  verifies the token hash directly. The `{{ .Token }}` template variable is
+  still required for the numeric-code path.
+- Google uses Supabase PKCE through a system browser session; the client
+  redirect is `pierrot://auth/callback` (and the `exp://` redirect in Expo Go).
+  The owner added both to Supabase redirect URLs on 2026-11-02; a physical-device
+  return test is still required. No provider token is placed in a URL or log.
+- Apple uses `expo-apple-authentication` and a Supabase ID-token exchange. The
+  app uses the native Apple button and captures the first-sign-in name into
+  user metadata.
+- Passkey is not enabled. Supabase passkeys are beta and need a native WebAuthn
+  plugin plus associated domains/AASA; a browser WebAuthn call is not valid
+  React Native code. This is tracked as a blocker in `TODO.md`.
+- Sessions still live in SecureStore; Google/Apple exchange into the same
+  `AuthSession` contract used by email OTP, so refresh/logout and bearer calls
+  to newlove remain unchanged.
+
+---
+
 ## 4. Mobile architecture
 
 ```text
@@ -467,8 +521,9 @@ endpoint; that is intentionally not added in this release (see `TODO.md`).
 
 ### 4.4 Responsive design
 
-- Dark-only: `#050505` background, warm white `#F3F1EC` text, grey hierarchy,
-  one restrained border colour.
+- Light-first: `#FAF8F5` / `#FFFFFF` surfaces, `#211F1F` type and a restrained
+  `#990F3D` accent, with a matching `#080808` dark palette and System mode.
+  The theme is semantic and persisted in SecureStore.
 - System serif for editorial headings, system sans for body, mono for labels.
 - iPhone: single chat column, bottom tab bar, history modal.
 - iPad (≥ 820 pt): chat gets a 292 pt conversation sidebar; Flow becomes a

@@ -9,7 +9,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { fonts, palette, radius, spacing } from '@/constants/theme';
+import { fonts, radius, spacing, ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/theme/ThemeContext';
 
 type Props = TextInputProps & {
   label?: string;
@@ -17,12 +18,14 @@ type Props = TextInputProps & {
 };
 
 export function TextField({ label, containerStyle, style, ...props }: Props) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   return (
     <View style={containerStyle}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
       <TextInput
-        placeholderTextColor={palette.textFaint}
-        selectionColor={palette.textSecondary}
+        placeholderTextColor={colors.textFaint}
+        selectionColor={colors.textSecondary}
         keyboardAppearance="dark"
         style={[styles.input, props.multiline && styles.multiline, style]}
         {...props}
@@ -31,23 +34,24 @@ export function TextField({ label, containerStyle, style, ...props }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => {
+  return StyleSheet.create({
   label: {
     fontFamily: fonts.mono,
     fontSize: 10,
     lineHeight: 14,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
-    color: palette.textMuted,
+    color: colors.textMuted,
     marginBottom: spacing.xs,
   },
   input: {
     minHeight: 46,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.lineStrong,
+    borderColor: colors.lineStrong,
     borderRadius: radius.sm,
-    backgroundColor: palette.backgroundElevated,
-    color: palette.text,
+    backgroundColor: colors.backgroundElevated,
+    color: colors.text,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     fontFamily: fonts.sans,
@@ -59,4 +63,5 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     paddingTop: spacing.sm,
   },
-});
+  });
+};

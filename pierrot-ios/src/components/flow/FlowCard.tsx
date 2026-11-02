@@ -1,12 +1,13 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useThemedStyles } from '@/theme/ThemeContext';
 import { Image } from 'expo-image';
 import * as WebBrowser from 'expo-web-browser';
 
 import type { FlowItem } from '@/api/types';
 import { absoluteSiteUrl } from '@/config/env';
 import { firstLine, formatFlowDate, hostFromUrl, plainTextFromMarkdown } from '@/lib/format';
-import { fonts, palette, radius, spacing, type } from '@/constants/theme';
+import { fonts, radius, spacing, typography, ThemeColors } from '@/constants/theme';
 
 const TYPE_LABEL: Record<string, string> = {
   note: 'Note',
@@ -76,6 +77,7 @@ function excerptFor(item: FlowItem): string {
 }
 
 export function FlowCard({ item }: { item: FlowItem }) {
+  const styles = useThemedStyles(makeStyles);
   const image = imageFor(item);
   const title = titleFor(item);
   const excerpt = excerptFor(item);
@@ -123,13 +125,15 @@ export function FlowCard({ item }: { item: FlowItem }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => {
+  const type = typography(colors);
+  return StyleSheet.create({
   root: {
     flex: 1,
     paddingBottom: spacing.lg,
     gap: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: palette.line,
+    borderBottomColor: colors.line,
   },
   pressed: {
     opacity: 0.72,
@@ -138,7 +142,7 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 16 / 10,
     borderRadius: radius.md,
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     marginBottom: spacing.xs,
   },
   metaRow: {
@@ -149,7 +153,7 @@ const styles = StyleSheet.create({
   meta: {
     ...type.label,
     fontSize: 9,
-    color: palette.textFaint,
+    color: colors.textFaint,
   },
   title: {
     ...type.heading,
@@ -158,7 +162,7 @@ const styles = StyleSheet.create({
   },
   excerpt: {
     ...type.bodySmall,
-    color: palette.textSecondary,
+    color: colors.textSecondary,
   },
   footer: {
     flexDirection: 'row',
@@ -171,12 +175,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.mono,
     fontSize: 10,
     letterSpacing: 0.4,
-    color: palette.textFaint,
+    color: colors.textFaint,
     flex: 1,
   },
   arrow: {
     fontFamily: fonts.sans,
     fontSize: 14,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
-});
+  });
+};

@@ -8,7 +8,10 @@ import {
   refreshAuthSession,
   requestEmailCode,
   revokeAuthSession,
+  signInWithAppleNative,
+  signInWithGoogleOAuth,
   verifyEmailCode,
+  verifyEmailLink,
   type AuthSession,
 } from '@/api/supabaseAuth';
 import { isAuthConfigured } from '@/config/env';
@@ -28,6 +31,9 @@ type AuthContextValue = {
   error: string | null;
   requestCode: (email: string) => Promise<void>;
   signIn: (email: string, code: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
+  signInWithEmailLink: (link: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshMe: () => Promise<void>;
   getAccessToken: () => Promise<string | null>;
@@ -225,6 +231,51 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
     [applySession, loadMe]
   );
 
+  const signInWithGoogle = React.useCallback(async () => {
+    setError(null);
+    try {
+      const next = await signInWithGoogleOAuth();
+      applySession(next);
+      setStatus('signedIn');
+      await loadMe(next.accessToken);
+    } catch (requestError) {
+      const message = friendlyApiMessage(requestError);
+      setError(message);
+      throw requestError;
+    }
+  }, [applySession, loadMe]);
+
+  const signInWithApple = React.useCallback(async () => {
+    setError(null);
+    try {
+      const next = await signInWithAppleNative();
+      applySession(next);
+      setStatus('signedIn');
+      await loadMe(next.accessToken);
+    } catch (requestError) {
+      const message = friendlyApiMessage(requestError);
+      setError(message);
+      throw requestError;
+    }
+  }, [applySession, loadMe]);
+
+  const signInWithEmailLink = React.useCallback(
+    async (link: string) => {
+      setError(null);
+      try {
+        const next = await verifyEmailLink(link);
+        applySession(next);
+        setStatus('signedIn');
+        await loadMe(next.accessToken);
+      } catch (requestError) {
+        const message = friendlyApiMessage(requestError);
+        setError(message);
+        throw requestError;
+      }
+    },
+    [applySession, loadMe]
+  );
+
   const signOut = React.useCallback(async () => {
     const current = sessionRef.current;
 
@@ -278,6 +329,9 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
       error,
       requestCode,
       signIn,
+      signInWithGoogle,
+      signInWithApple,
+      signInWithEmailLink,
       signOut,
       refreshMe,
       getAccessToken,
@@ -291,6 +345,9 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
       error,
       requestCode,
       signIn,
+      signInWithGoogle,
+      signInWithApple,
+      signInWithEmailLink,
       signOut,
       refreshMe,
       getAccessToken,

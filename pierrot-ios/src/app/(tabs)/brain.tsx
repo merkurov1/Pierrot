@@ -9,10 +9,16 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useThemedStyles } from '@/theme/ThemeContext';
 import * as Crypto from 'expo-crypto';
 
 import { friendlyApiMessage, ApiError } from '@/api/client';
-import { askBrain } from '@/api/brain';
+import {
+  askBrain,
+  enqueueBrainText,
+  previewBrainText,
+  type BrainSourcePreview,
+} from '@/api/brain';
 import { sendPierrot } from '@/api/pierrot';
 import type { BrainResearchResponse } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
@@ -22,7 +28,7 @@ import { Notice } from '@/components/ui/Notice';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Screen } from '@/components/ui/Screen';
 import { TextField } from '@/components/ui/TextField';
-import { fonts, layout, palette, radius, spacing, type } from '@/constants/theme';
+import { fonts, layout, radius, spacing, typography, ThemeColors } from '@/constants/theme';
 
 type Mode = 'ask' | 'add';
 type UrlStep = 'idle' | 'preview' | 'done';
@@ -45,6 +51,7 @@ function Gate({
   message: string;
   action?: { label: string; onPress: () => void };
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.gate}>
       <Text style={styles.gateTitle}>{title}</Text>
@@ -67,6 +74,7 @@ function CitationRow({
   sourceType: string | null;
   similarity: number | null;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.citation}>
       <View style={styles.citationBody}>
@@ -86,6 +94,7 @@ function CitationRow({
 }
 
 function ResearchResult({ result }: { result: BrainResearchResponse }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.result}>
       <View style={styles.resultMetaRow}>
@@ -132,6 +141,23 @@ function ResearchResult({ result }: { result: BrainResearchResponse }) {
         </View>
       ) : null}
 
+      {result.relationships.length > 0 ? (
+        <View style={styles.resultSection}>
+          <Text style={styles.sectionLabel}>Relationships</Text>
+          {result.relationships.slice(0, 12).map((relationship, index) => (
+            <View key={`${relationship.source}-${relationship.target}-${index}`} style={styles.relationship}>
+              <Text style={styles.citationTitle}>
+                {relationship.source} → {relationship.target}
+              </Text>
+              <Text style={styles.citationHeading}>
+                {relationship.relation}
+                {relationship.document_title ? ` · ${relationship.document_title}` : ''}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       {result.graphContext.matchedRelationships > 0 ? (
         <Text style={styles.graphMeta}>
           Knowledge graph: {result.graphContext.matchedEntities} entities ·{' '}
@@ -143,6 +169,7 @@ function ResearchResult({ result }: { result: BrainResearchResponse }) {
 }
 
 export default function BrainScreen() {
+  const styles = useThemedStyles(makeStyles);
   const { status, session, isAdmin, getAccessToken } = useAuth();
 
   const [mode, setMode] = React.useState<Mode>('ask');
@@ -156,6 +183,11 @@ export default function BrainScreen() {
   const [urlThread, setUrlThread] = React.useState<UrlThread | null>(null);
   const [urlBusy, setUrlBusy] = React.useState(false);
   const [urlError, setUrlError] = React.useState<string | null>(null);
+  const [textContent, setTextContent] = React.useState('');
+  const [textPreview, setTextPreview] = React.useState<BrainSourcePreview | null>(null);
+  const [textBusy, setTextBusy] = React.useState(false);
+  const [textError, setTextError] = React.useState<string | null>(null);
+  const [textResult, setTextResult] = React.useState<string | null>(null);
 
   const ask = async () => {
     const text = question.trim();
@@ -188,6 +220,49 @@ export default function BrainScreen() {
     setUrlStep('idle');
     setUrlThread(null);
     setUrlError(null);
+  };
+
+  const previewText = async () => {
+    const value = textContent.trim();
+    if (!value || textBusy) return;
+
+    setTextBusy(true);
+    setTextError(null);
+    setTextPreview(null);
+    setTextResult(null);
+
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new ApiError('Sign in as owner.', { code: 'UNAUTHORIZED' });
+      const result = await previewBrainText(token, value);
+      setTextPreview(result.preview);
+    } catch (error) {
+      setTextError(friendlyApiMessage(error));
+    } finally {
+      setTextBusy(false);
+    }
+  };
+
+  const saveText = async () => {
+    if (!textPreview || textBusy) return;
+
+    setTextBusy(true);
+    setTextError(null);
+
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new ApiError('Sign in as owner.', { code: 'UNAUTHORIZED' });
+      const result = await enqueueBrainText(token, textPreview);
+      setTextResult(
+        result.run
+          ? `Queued ${result.jobs.length} job(s); run ${result.run.id}.`
+          : 'Nothing new was queued; the source may already exist.'
+      );
+    } catch (error) {
+      setTextError(friendlyApiMessage(error));
+    } finally {
+      setTextBusy(false);
+    }
   };
 
   const submitUrl = async () => {
@@ -470,6 +545,57 @@ export default function BrainScreen() {
                   ) : null}
                 </View>
               ) : null}
+
+              <View style={styles.textSource}>
+                <Text style={styles.sectionLabel}>Paste text</Text>
+                <TextField
+                  label="Text source"
+                  value={textContent}
+                  onChangeText={setTextContent}
+                  placeholder="Paste an article, note or part of a document…"
+                  multiline
+                  maxLength={200000}
+                />
+                <View style={styles.panelActions}>
+                  <ActionButton
+                    label={textBusy ? 'Previewing' : 'Preview text'}
+                    onPress={() => void previewText()}
+                    loading={textBusy}
+                    disabled={!textContent.trim()}
+                  />
+                  {textPreview ? (
+                    <ActionButton
+                      label={textBusy ? 'Adding' : 'Add to Brain'}
+                      onPress={() => void saveText()}
+                      loading={textBusy}
+                    />
+                  ) : null}
+                </View>
+                <Text style={styles.panelHint}>
+                  Preview is required before saving. Text ingestion uses the existing
+                  Brain storage and queue; documents/PDF uploads still require the
+                  server upload flow.
+                </Text>
+                {textError ? (
+                  <Notice tone="error" title="Text not accepted" message={textError} />
+                ) : null}
+                {textPreview ? (
+                  <View style={styles.result}>
+                    <Text style={styles.citationTitle}>{textPreview.title}</Text>
+                    <Text style={styles.resultMeta}>
+                      {textPreview.chunkCount} chunks · {textPreview.wordCount} words
+                      {textPreview.duplicate ? ' · already indexed' : ''}
+                    </Text>
+                    <Text style={styles.citationHeading}>{textPreview.excerpt}</Text>
+                    {textPreview.warnings.length > 0 ? (
+                      <Text style={styles.identifier}>{textPreview.warnings.join(' · ')}</Text>
+                    ) : null}
+                  </View>
+                ) : null}
+                {textResult ? (
+                  <Notice tone="success" title="Brain queue" message={textResult} />
+                ) : null}
+              </View>
             </View>
           )}
         </ScrollView>
@@ -478,7 +604,9 @@ export default function BrainScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => {
+  const type = typography(colors);
+  return StyleSheet.create({
   flex: {
     flex: 1,
   },
@@ -492,7 +620,7 @@ const styles = StyleSheet.create({
   gate: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.line,
+    borderColor: colors.line,
     paddingVertical: spacing.xl,
     gap: spacing.md,
   },
@@ -501,7 +629,7 @@ const styles = StyleSheet.create({
   },
   gateText: {
     ...type.bodySmall,
-    color: palette.textSecondary,
+    color: colors.textSecondary,
     maxWidth: 560,
   },
   gateButton: {
@@ -512,7 +640,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.xl,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: palette.line,
+    borderBottomColor: colors.line,
     marginBottom: spacing.lg,
   },
   switchItem: {
@@ -524,19 +652,26 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 1.3,
     textTransform: 'uppercase',
-    color: palette.textFaint,
+    color: colors.textFaint,
   },
   switchLabelActive: {
-    color: palette.text,
+    color: colors.text,
   },
   switchRule: {
     height: 1,
     backgroundColor: 'transparent',
   },
   switchRuleActive: {
-    backgroundColor: palette.text,
+    backgroundColor: colors.text,
   },
   panel: {
+    gap: spacing.md,
+  },
+  textSource: {
+    marginTop: spacing.xl,
+    paddingTop: spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.line,
     gap: spacing.md,
   },
   panelActions: {
@@ -547,14 +682,14 @@ const styles = StyleSheet.create({
   },
   panelHint: {
     ...type.meta,
-    color: palette.textFaint,
+    color: colors.textFaint,
     flexShrink: 1,
   },
   result: {
     marginTop: spacing.md,
     paddingTop: spacing.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: palette.line,
+    borderTopColor: colors.line,
     gap: spacing.md,
   },
   resultMetaRow: {
@@ -565,7 +700,7 @@ const styles = StyleSheet.create({
   resultMeta: {
     ...type.label,
     fontSize: 9,
-    color: palette.textFaint,
+    color: colors.textFaint,
   },
   answer: {
     paddingVertical: spacing.xs,
@@ -574,7 +709,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sans,
     fontSize: 12,
     lineHeight: 18,
-    color: palette.textFaint,
+    color: colors.textFaint,
   },
   resultSection: {
     marginTop: spacing.sm,
@@ -584,6 +719,12 @@ const styles = StyleSheet.create({
     ...type.label,
     marginBottom: spacing.xs,
   },
+  relationship: {
+    paddingVertical: spacing.xs,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.line,
+    gap: 2,
+  },
   citation: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -591,7 +732,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: palette.line,
+    borderTopColor: colors.line,
   },
   citationBody: {
     flex: 1,
@@ -601,13 +742,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.serif,
     fontSize: 16,
     lineHeight: 21,
-    color: palette.text,
+    color: colors.text,
   },
   citationHeading: {
     fontFamily: fonts.sans,
     fontSize: 12,
     lineHeight: 17,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   citationMeta: {
     alignItems: 'flex-end',
@@ -618,12 +759,12 @@ const styles = StyleSheet.create({
     fontSize: 8,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
-    color: palette.textFaint,
+    color: colors.textFaint,
   },
   citationScore: {
     fontFamily: fonts.mono,
     fontSize: 9,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   chips: {
     flexDirection: 'row',
@@ -632,7 +773,7 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.lineStrong,
+    borderColor: colors.lineStrong,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.sm,
     paddingVertical: 5,
@@ -640,16 +781,17 @@ const styles = StyleSheet.create({
   chipText: {
     fontFamily: fonts.sans,
     fontSize: 12,
-    color: palette.textSecondary,
+    color: colors.textSecondary,
   },
   graphMeta: {
     ...type.meta,
-    color: palette.textFaint,
+    color: colors.textFaint,
   },
   identifier: {
     fontFamily: fonts.mono,
     fontSize: 9,
     lineHeight: 14,
-    color: palette.textFaint,
+    color: colors.textFaint,
   },
-});
+  });
+};

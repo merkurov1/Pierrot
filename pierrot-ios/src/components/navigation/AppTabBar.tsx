@@ -1,8 +1,9 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useThemedStyles } from '@/theme/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fonts, layout, palette, spacing } from '@/constants/theme';
+import { fonts, layout, spacing, ThemeColors } from '@/constants/theme';
 
 type TabBarProps = {
   state: {
@@ -19,10 +20,12 @@ const LABELS: Record<string, string> = {
   index: 'Chat',
   brain: 'Brain',
   flow: 'Flow',
+  dev: 'Dev',
   settings: 'Settings',
 };
 
 export function AppTabBar({ state, descriptors, emitter, navigateToTab }: TabBarProps) {
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
 
   return (
@@ -65,11 +68,12 @@ export function AppTabBar({ state, descriptors, emitter, navigateToTab }: TabBar
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => {
+  return StyleSheet.create({
   root: {
-    backgroundColor: palette.background,
+    backgroundColor: colors.background,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: palette.line,
+    borderTopColor: colors.line,
     paddingTop: spacing.xs,
   },
   inner: {
@@ -98,16 +102,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   dotActive: {
-    backgroundColor: palette.text,
+    backgroundColor: colors.text,
   },
   label: {
     fontFamily: fonts.mono,
     fontSize: 9,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
-    color: palette.textFaint,
+    color: colors.textFaint,
   },
   labelActive: {
-    color: palette.text,
+    color: colors.text,
   },
-});
+  });
+};

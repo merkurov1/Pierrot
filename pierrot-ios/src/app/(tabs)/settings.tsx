@@ -11,25 +11,33 @@ import {
   View,
 } from 'react-native';
 import Constants from 'expo-constants';
+import * as Clipboard from 'expo-clipboard';
+import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Linking from 'expo-linking';
 
 import { friendlyApiMessage } from '@/api/client';
+import { useTheme, useThemedStyles, type ThemePreference } from '@/theme/ThemeContext';
 import { getHealth } from '@/api/health';
+import { deleteAccount, deleteServerConversation, listServerConversations } from '@/api/mobile';
 import type { HealthResponse } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { useChat } from '@/chat/ChatContext';
 import { ActionButton } from '@/components/ui/ActionButton';
+import { Avatar } from '@/components/ui/Avatar';
 import { Notice, Rule } from '@/components/ui/Notice';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Screen } from '@/components/ui/Screen';
 import { TextField } from '@/components/ui/TextField';
 import { env } from '@/config/env';
-import { fonts, palette, spacing, type } from '@/constants/theme';
+import { fonts, spacing, typography, ThemeColors } from '@/constants/theme';
 
 function Section({
   label,
   children,
 }: React.PropsWithChildren<{ label: string }>) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.section}>
       <Text style={styles.sectionLabel}>{label}</Text>
@@ -47,6 +55,7 @@ function ValueRow({
   value: string;
   tone?: 'ok' | 'bad';
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.valueRow}>
       <Text style={styles.valueLabel}>{label}</Text>
@@ -68,6 +77,8 @@ function ValueRow({
 }
 
 export default function SettingsScreen() {
+  const styles = useThemedStyles(makeStyles);
+  const { colors, preference, setPreference } = useTheme();
   const {
     status,
     session,
@@ -78,14 +89,19 @@ export default function SettingsScreen() {
     error,
     requestCode,
     signIn,
+    signInWithGoogle,
+    signInWithApple,
+    signInWithEmailLink,
     signOut,
     refreshMe,
     setConsent,
+    getAccessToken,
   } = useAuth();
   const { conversations, clearConversations } = useChat();
 
   const [email, setEmail] = React.useState('');
   const [code, setCode] = React.useState('');
+  const [emailLink, setEmailLink] = React.useState('');
   const [codeSent, setCodeSent] = React.useState(false);
   const [authBusy, setAuthBusy] = React.useState(false);
   const [authError, setAuthError] = React.useState<string | null>(null);
@@ -94,6 +110,14 @@ export default function SettingsScreen() {
   const [healthError, setHealthError] = React.useState<string | null>(null);
   const [healthBusy, setHealthBusy] = React.useState(false);
   const [checkedAt, setCheckedAt] = React.useState<Date | null>(null);
+  const [accountBusy, setAccountBusy] = React.useState(false);
+  const oauthRedirect = React.useMemo(() => {
+    try {
+      return Linking.createURL('auth/callback');
+    } catch {
+      return 'pierrot://auth/callback';
+    }
+  }, []);
 
   const checkHealth = React.useCallback(async () => {
     setHealthBusy(true);
@@ -118,6 +142,23 @@ export default function SettingsScreen() {
     void checkHealth();
   }, [checkHealth]);
 
+  const runSocial = async (method: 'google' | 'apple') => {
+    if (authBusy) return;
+    setAuthBusy(true);
+    setAuthError(null);
+
+    try {
+      if (method === 'google') await signInWithGoogle();
+      else await signInWithApple();
+      setCode('');
+      setCodeSent(false);
+    } catch (requestError) {
+      setAuthError(friendlyApiMessage(requestError));
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
   const sendCode = async () => {
     const value = email.trim();
     if (!value || authBusy) return;
@@ -135,9 +176,21 @@ export default function SettingsScreen() {
     }
   };
 
+  const describeAuthError = (error: unknown, mode: 'code' | 'link') => {
+    const message = friendlyApiMessage(error);
+
+    if (/expired|invalid|token/i.test(message)) {
+      return mode === 'code'
+        ? 'That code is invalid or was already used. If you opened the email link, request a new code — or copy the link without opening it and paste it below.'
+        : 'That link is invalid or was already used. Request a new email and copy the link without opening it.';
+    }
+
+    return message;
+  };
+
   const submitCode = async () => {
-    const value = code.trim();
-    if (value.length !== 6 || authBusy) return;
+    const value = code.replace(/\D/g, '');
+    if (value.length < 6 || authBusy) return;
 
     setAuthBusy(true);
     setAuthError(null);
@@ -145,9 +198,29 @@ export default function SettingsScreen() {
     try {
       await signIn(email.trim(), value);
       setCode('');
+      setEmailLink('');
       setCodeSent(false);
     } catch (requestError) {
-      setAuthError(friendlyApiMessage(requestError));
+      setAuthError(describeAuthError(requestError, 'code'));
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const submitEmailLink = async () => {
+    const value = emailLink.trim();
+    if (!value || authBusy) return;
+
+    setAuthBusy(true);
+    setAuthError(null);
+
+    try {
+      await signInWithEmailLink(value);
+      setEmailLink('');
+      setCode('');
+      setCodeSent(false);
+    } catch (requestError) {
+      setAuthError(describeAuthError(requestError, 'link'));
     } finally {
       setAuthBusy(false);
     }
@@ -168,6 +241,68 @@ export default function SettingsScreen() {
         { text: 'Cancel', style: 'cancel' },
         { text: 'Clear', style: 'destructive', onPress: clearConversations },
       ]
+    );
+  };
+
+  const deleteServerHistory = async () => {
+    if (!session || accountBusy) return;
+
+    Alert.alert(
+      'Delete server history?',
+      'This deletes the owner-scoped server archive for this account. Decisions and Dev prompts are kept.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setAccountBusy(true);
+              try {
+                const token = await getAccessToken();
+                if (!token) return;
+                const list = await listServerConversations(token, { limit: 50 });
+                for (const item of list.items) {
+                  await deleteServerConversation(token, item.id);
+                }
+                Alert.alert('Server history deleted', `${list.items.length} conversation(s) removed.`);
+              } catch (requestError) {
+                Alert.alert('Deletion failed', friendlyApiMessage(requestError));
+              } finally {
+                setAccountBusy(false);
+              }
+            })();
+          },
+        },
+      ]
+    );
+  };
+
+  const confirmDeleteAccount = () => {
+    if (Platform.OS !== 'ios' || !Alert.prompt) return;
+
+    Alert.prompt(
+      'Delete account',
+      'This permanently deletes the Supabase account and its server-side Pierrot data. Type DELETE to confirm.',
+      (value) => {
+        if (value?.trim() !== 'DELETE') return;
+        void (async () => {
+          setAccountBusy(true);
+          try {
+            const token = await getAccessToken();
+            if (!token) return;
+            await deleteAccount(token);
+            clearConversations();
+            await signOut();
+            Alert.alert('Account deleted', 'The local cache has been cleared.');
+          } catch (requestError) {
+            Alert.alert('Account deletion failed', friendlyApiMessage(requestError));
+          } finally {
+            setAccountBusy(false);
+          }
+        })();
+      },
+      'plain-text'
     );
   };
 
@@ -195,6 +330,8 @@ export default function SettingsScreen() {
               <Text style={styles.muted}>Restoring session…</Text>
             ) : session ? (
               <>
+                <View style={styles.identityRow}>
+                  <Avatar uri={me?.user?.image} name={me?.user?.name || session.user.name} size={44} />
                 <View style={styles.identity}>
                   <Text style={styles.identityName}>
                     {me?.user?.name || session.user.name || session.user.email || 'Signed in'}
@@ -206,6 +343,7 @@ export default function SettingsScreen() {
                     {isAdmin ? 'Owner / ADMIN' : me ? 'Authenticated account' : 'Session active'}
                   </Text>
                 </View>
+                </View>
 
                 <View style={styles.buttonRow}>
                   <ActionButton
@@ -214,6 +352,12 @@ export default function SettingsScreen() {
                     onPress={() => void refreshMe()}
                   />
                   <ActionButton label="Sign out" variant="quiet" onPress={confirmSignOut} />
+                  <ActionButton
+                    label={accountBusy ? 'Working' : 'Delete account'}
+                    variant="quiet"
+                    onPress={confirmDeleteAccount}
+                    disabled={accountBusy}
+                  />
                 </View>
 
                 <Text style={styles.help}>
@@ -228,6 +372,31 @@ export default function SettingsScreen() {
               />
             ) : (
               <>
+                <View style={styles.socialButtons}>
+                  <ActionButton
+                    label={authBusy ? 'Connecting' : 'Continue with Google'}
+                    variant="outline"
+                    onPress={() => void runSocial('google')}
+                    disabled={authBusy}
+                  />
+                  {Platform.OS === 'ios' ? (
+                    <AppleAuthentication.AppleAuthenticationButton
+                      buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                      buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                      cornerRadius={8}
+                      style={styles.appleButton}
+                      onPress={() => void runSocial('apple')}
+                    />
+                  ) : null}
+                  <Text style={styles.help}>
+                    Google and Apple use the existing Supabase providers. If Google returns
+                    you to merkurov.love, add the current OAuth redirect shown below to
+                    Supabase Redirect URLs. Email OTP below works without any redirect and
+                    is the fallback. Passkey remains disabled until a verified native
+                    WebAuthn plugin is added.
+                  </Text>
+                </View>
+
                 <TextField
                   label="Email"
                   value={email}
@@ -244,17 +413,17 @@ export default function SettingsScreen() {
                     <TextField
                       label="Email code"
                       value={code}
-                      onChangeText={setCode}
+                      onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 10))}
                       placeholder="6-digit code"
                       keyboardType="number-pad"
-                      maxLength={6}
+                      maxLength={10}
                     />
                     <View style={styles.buttonRow}>
                       <ActionButton
                         label={authBusy ? 'Signing in' : 'Sign in'}
                         onPress={() => void submitCode()}
                         loading={authBusy}
-                        disabled={code.trim().length !== 6}
+                        disabled={code.replace(/\D/g, '').length < 6}
                       />
                       <ActionButton
                         label="Change email"
@@ -262,9 +431,32 @@ export default function SettingsScreen() {
                         onPress={() => {
                           setCodeSent(false);
                           setCode('');
+                          setEmailLink('');
                           setAuthError(null);
                         }}
                         disabled={authBusy}
+                      />
+                    </View>
+                    <Text style={styles.help}>
+                      Use the 6-digit code from the email. If your email only contains a
+                      magic link, copy that link without opening it and paste it below.
+                    </Text>
+                    <TextField
+                      label="Email link (optional)"
+                      value={emailLink}
+                      onChangeText={setEmailLink}
+                      placeholder="https://…/auth/v1/verify?token=…"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      multiline
+                    />
+                    <View style={styles.buttonRow}>
+                      <ActionButton
+                        label={authBusy ? 'Signing in' : 'Sign in with link'}
+                        variant="outline"
+                        onPress={() => void submitEmailLink()}
+                        loading={authBusy}
+                        disabled={!emailLink.trim()}
                       />
                     </View>
                     <Pressable
@@ -303,12 +495,48 @@ export default function SettingsScreen() {
 
           <Rule />
 
+          <Section label="Appearance">
+            <Text style={styles.help}>
+              Light is the default. System follows the device setting.
+            </Text>
+            <View style={styles.segment}>
+              {(['light', 'dark', 'system'] as ThemePreference[]).map((value) => (
+                <Pressable
+                  key={value}
+                  onPress={() => void setPreference(value)}
+                  style={[styles.segmentItem, preference === value && styles.segmentActive]}>
+                  <Text
+                    style={[
+                      styles.segmentText,
+                      preference === value && styles.segmentTextActive,
+                    ]}>
+                    {value}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </Section>
+
+          <Rule />
+
           <Section label="Connection">
             <ValueRow
               label="Backend"
               value={env.apiUrl}
               tone={health ? 'ok' : healthError ? 'bad' : undefined}
             />
+            <ValueRow label="OAuth redirect" value={oauthRedirect} />
+            <View style={styles.buttonRow}>
+              <ActionButton
+                label="Copy OAuth redirect"
+                variant="quiet"
+                onPress={() => {
+                  void Clipboard.setStringAsync(oauthRedirect).then(() =>
+                    Alert.alert('Copied', 'Paste it into Supabase Redirect URLs.')
+                  );
+                }}
+              />
+            </View>
             <ValueRow
               label="State"
               value={
@@ -374,8 +602,8 @@ export default function SettingsScreen() {
               <Switch
                 value={consent === 'granted'}
                 onValueChange={(value) => void setConsent(value ? 'granted' : 'denied')}
-                trackColor={{ false: palette.surfaceActive, true: palette.lineStrong }}
-                thumbColor={consent === 'granted' ? palette.text : palette.textMuted}
+                trackColor={{ false: colors.surfaceActive, true: colors.lineStrong }}
+                thumbColor={consent === 'granted' ? colors.text : colors.textMuted}
               />
             </View>
 
@@ -393,9 +621,20 @@ export default function SettingsScreen() {
 
             <View style={styles.buttonRow}>
               <ActionButton
+                label="Decision memory"
+                variant="outline"
+                onPress={() => router.push('/decisions')}
+              />
+              <ActionButton
                 label="Clear local conversations"
                 variant="outline"
                 onPress={confirmClear}
+              />
+              <ActionButton
+                label={accountBusy ? 'Working' : 'Delete server history'}
+                variant="outline"
+                onPress={() => void deleteServerHistory()}
+                disabled={accountBusy}
               />
             </View>
           </Section>
@@ -413,6 +652,15 @@ export default function SettingsScreen() {
               onPress={() => void WebBrowser.openBrowserAsync(env.siteUrl)}>
               <Text style={styles.link}>merkurov.love ↗</Text>
             </Pressable>
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => void WebBrowser.openBrowserAsync(`${env.siteUrl}/advising`)}>
+              <Text style={styles.link}>Support / contact ↗</Text>
+            </Pressable>
+            <Text style={styles.help}>
+              Privacy: chat content, account email and diagnostics. Server transcripts
+              are optional and controlled above. Local transcripts stay on this device.
+            </Text>
 
             <Text style={styles.help}>
               Pierrot is a personal intelligence interface over the existing newlove
@@ -425,7 +673,9 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => {
+  const type = typography(colors);
+  return StyleSheet.create({
   flex: {
     flex: 1,
   },
@@ -447,21 +697,61 @@ const styles = StyleSheet.create({
   sectionBody: {
     gap: spacing.md,
   },
+  identityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
   identity: {
+    flex: 1,
     gap: 3,
+  },
+  segment: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    borderRadius: 8,
+    overflow: 'hidden',
+    alignSelf: 'flex-start',
+  },
+  segmentItem: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+  },
+  segmentActive: {
+    backgroundColor: colors.text,
+  },
+  segmentText: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.textSecondary,
+  },
+  segmentTextActive: {
+    color: colors.inverseText,
   },
   identityName: {
     ...type.heading,
   },
   identityEmail: {
     ...type.bodySmall,
-    color: palette.textSecondary,
+    color: colors.textSecondary,
   },
   identityRole: {
     ...type.label,
     fontSize: 9,
-    color: palette.textMuted,
+    color: colors.textMuted,
     marginTop: spacing.xs,
+  },
+  socialButtons: {
+    gap: spacing.sm,
+    alignItems: 'stretch',
+  },
+  appleButton: {
+    width: '100%',
+    height: 44,
+    borderRadius: 8,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -471,20 +761,20 @@ const styles = StyleSheet.create({
   },
   muted: {
     ...type.bodySmall,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   help: {
     fontFamily: fonts.sans,
     fontSize: 12,
     lineHeight: 18,
-    color: palette.textFaint,
+    color: colors.textFaint,
   },
   link: {
     fontFamily: fonts.mono,
     fontSize: 10,
     letterSpacing: 1.1,
     textTransform: 'uppercase',
-    color: palette.textSecondary,
+    color: colors.textSecondary,
     textDecorationLine: 'underline',
     alignSelf: 'flex-start',
   },
@@ -497,7 +787,7 @@ const styles = StyleSheet.create({
   },
   valueLabel: {
     ...type.meta,
-    color: palette.textMuted,
+    color: colors.textMuted,
     minWidth: 96,
   },
   valueRight: {
@@ -511,7 +801,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.mono,
     fontSize: 11,
     lineHeight: 16,
-    color: palette.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'right',
     flexShrink: 1,
   },
@@ -521,10 +811,10 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   statusOk: {
-    backgroundColor: palette.success,
+    backgroundColor: colors.success,
   },
   statusBad: {
-    backgroundColor: palette.danger,
+    backgroundColor: colors.danger,
   },
   switchRow: {
     flexDirection: 'row',
@@ -539,6 +829,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sans,
     fontSize: 15,
     lineHeight: 21,
-    color: palette.text,
+    color: colors.text,
   },
-});
+  });
+};

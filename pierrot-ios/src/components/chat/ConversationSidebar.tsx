@@ -1,20 +1,31 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { useAuth } from '@/auth/AuthContext';
 import { useChat } from '@/chat/ChatContext';
+import { Avatar } from '@/components/ui/Avatar';
+import { ProjectPulse } from '@/components/chat/ProjectPulse';
+import { PIERROT_AVATAR_SRC } from '@/config/pierrot';
 import { formatRelative } from '@/lib/format';
-import { fonts, palette, radius, spacing, type } from '@/constants/theme';
+import { fonts, radius, spacing, typography, type ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/theme/ThemeContext';
 
 export function ConversationSidebar() {
   const { conversations, activeId, setActiveId, startNewConversation } = useChat();
-  const { session, isAdmin } = useAuth();
+  const { session, me, isAdmin } = useAuth();
+  const styles = useThemedStyles(makeStyles);
+  const displayName = me?.user?.name || session?.user.name || session?.user.email || 'Guest';
 
   return (
     <View style={styles.root}>
       <View style={styles.brand}>
-        <Text style={styles.wordmark}>Pierrot</Text>
-        <Text style={styles.signature}>Digital shadow</Text>
+        <Avatar uri={PIERROT_AVATAR_SRC} name="Pierrot" size={30} />
+        <View style={styles.brandText}>
+          <Text style={styles.wordmark}>Pierrot</Text>
+          <Text style={styles.signature}>
+            {isAdmin ? 'Owner workspace' : 'Personal intelligence'}
+          </Text>
+        </View>
       </View>
 
       <Pressable
@@ -46,14 +57,17 @@ export function ConversationSidebar() {
                   active && styles.rowActive,
                   pressed && styles.pressed,
                 ]}>
-                <Text numberOfLines={2} style={[styles.rowTitle, active && styles.rowTitleActive]}>
-                  {conversation.title}
-                </Text>
+                <View style={styles.rowTitleLine}>
+                  {conversation.pinned ? <Text style={styles.pin}>•</Text> : null}
+                  <Text
+                    numberOfLines={2}
+                    style={[styles.rowTitle, active && styles.rowTitleActive]}>
+                    {conversation.title}
+                  </Text>
+                </View>
                 <Text style={styles.rowMeta}>
                   {formatRelative(conversation.updatedAt)}
-                  {conversation.messages.length > 0
-                    ? ` · ${conversation.messages.length}`
-                    : ''}
+                  {conversation.messages.length > 0 ? ` · ${conversation.messages.length}` : ''}
                 </Text>
               </Pressable>
             );
@@ -61,140 +75,165 @@ export function ConversationSidebar() {
         )}
       </ScrollView>
 
+      <ProjectPulse compact />
+
       <View style={styles.footer}>
-        <View style={[styles.dot, session ? styles.dotOn : null]} />
+        <Avatar uri={me?.user?.image} name={displayName} size={26} />
         <View style={styles.footerText}>
-          <Text style={styles.footerTitle}>
-            {session ? (isAdmin ? 'Owner' : 'Signed in') : 'Guest'}
+          <Text numberOfLines={1} style={styles.footerTitle}>
+            {displayName}
           </Text>
           <Text numberOfLines={1} style={styles.footerMeta}>
-            {session?.user.email ?? 'Not signed in'}
+            {session ? (isAdmin ? 'Owner / ADMIN' : 'Signed in') : 'Not signed in'}
           </Text>
         </View>
+        <View style={[styles.dot, session ? styles.dotOn : null]} />
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    width: 292,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: palette.line,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-    backgroundColor: palette.background,
-  },
-  brand: {
-    paddingHorizontal: spacing.xs,
-    marginBottom: spacing.xl,
-  },
-  wordmark: {
-    fontFamily: fonts.serif,
-    fontSize: 28,
-    lineHeight: 32,
-    letterSpacing: -0.6,
-    color: palette.text,
-  },
-  signature: {
-    ...type.label,
-    marginTop: spacing.xs,
-  },
-  newButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.lineStrong,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 10,
-  },
-  newGlyph: {
-    color: palette.textSecondary,
-    fontSize: 18,
-    lineHeight: 20,
-  },
-  newLabel: {
-    ...type.meta,
-    color: palette.textSecondary,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  sectionLabel: {
-    ...type.label,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-    paddingHorizontal: spacing.xs,
-  },
-  list: {
-    flex: 1,
-  },
-  listContent: {
-    gap: spacing.xxs,
-    paddingBottom: spacing.md,
-  },
-  empty: {
-    ...type.bodySmall,
-    color: palette.textFaint,
-    paddingHorizontal: spacing.xs,
-    paddingTop: spacing.xs,
-  },
-  row: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
-    gap: 3,
-  },
-  rowActive: {
-    backgroundColor: palette.surface,
-  },
-  rowTitle: {
-    fontFamily: fonts.sans,
-    fontSize: 14,
-    lineHeight: 19,
-    color: palette.textSecondary,
-  },
-  rowTitleActive: {
-    color: palette.text,
-  },
-  rowMeta: {
-    fontFamily: fonts.mono,
-    fontSize: 9,
-    letterSpacing: 0.5,
-    color: palette.textFaint,
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: palette.line,
-    paddingTop: spacing.md,
-    paddingHorizontal: spacing.xs,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: palette.textFaint,
-  },
-  dotOn: {
-    backgroundColor: palette.success,
-  },
-  footerText: {
-    flex: 1,
-  },
-  footerTitle: {
-    ...type.meta,
-    color: palette.textSecondary,
-  },
-  footerMeta: {
-    fontFamily: fonts.sans,
-    fontSize: 11,
-    color: palette.textFaint,
-    marginTop: 1,
-  },
-});
+const makeStyles = (colors: ThemeColors) => {
+  const type = typography(colors);
+
+  return {
+    root: {
+      width: 292,
+      borderRightWidth: 1,
+      borderRightColor: colors.line,
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.lg,
+      paddingBottom: spacing.md,
+      backgroundColor: colors.background,
+    },
+    brand: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: spacing.sm,
+      paddingHorizontal: spacing.xs,
+      marginBottom: spacing.xl,
+    },
+    brandText: {
+      flex: 1,
+    },
+    wordmark: {
+      fontFamily: fonts.serif,
+      fontSize: 28,
+      lineHeight: 32,
+      letterSpacing: -0.6,
+      color: colors.text,
+    },
+    signature: {
+      ...type.label,
+      fontSize: 8,
+      marginTop: 2,
+    },
+    newButton: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: spacing.sm,
+      borderWidth: 1,
+      borderColor: colors.lineStrong,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 10,
+    },
+    newGlyph: {
+      color: colors.textSecondary,
+      fontSize: 18,
+      lineHeight: 20,
+    },
+    newLabel: {
+      ...type.meta,
+      color: colors.textSecondary,
+    },
+    pressed: {
+      opacity: 0.7,
+    },
+    sectionLabel: {
+      ...type.label,
+      marginTop: spacing.lg,
+      marginBottom: spacing.sm,
+      paddingHorizontal: spacing.xs,
+    },
+    list: {
+      flex: 1,
+    },
+    listContent: {
+      gap: spacing.xxs,
+      paddingBottom: spacing.md,
+    },
+    empty: {
+      ...type.bodySmall,
+      color: colors.textFaint,
+      paddingHorizontal: spacing.xs,
+      paddingTop: spacing.xs,
+    },
+    row: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.sm,
+      gap: 3,
+    },
+    rowActive: {
+      backgroundColor: colors.surface,
+    },
+    rowTitleLine: {
+      flexDirection: 'row' as const,
+      alignItems: 'flex-start' as const,
+      gap: 4,
+    },
+    pin: {
+      color: colors.accent,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    rowTitle: {
+      flex: 1,
+      fontFamily: fonts.sans,
+      fontSize: 14,
+      lineHeight: 19,
+      color: colors.textSecondary,
+    },
+    rowTitleActive: {
+      color: colors.text,
+    },
+    rowMeta: {
+      fontFamily: fonts.mono,
+      fontSize: 9,
+      letterSpacing: 0.5,
+      color: colors.textFaint,
+    },
+    footer: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: colors.line,
+      paddingTop: spacing.md,
+      paddingHorizontal: spacing.xs,
+    },
+    footerText: {
+      flex: 1,
+    },
+    footerTitle: {
+      ...type.meta,
+      color: colors.textSecondary,
+    },
+    footerMeta: {
+      fontFamily: fonts.sans,
+      fontSize: 10,
+      color: colors.textFaint,
+      marginTop: 1,
+    },
+    dot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.textFaint,
+    },
+    dotOn: {
+      backgroundColor: colors.success,
+    },
+  };
+};

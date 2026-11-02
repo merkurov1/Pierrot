@@ -1,104 +1,123 @@
 # Pierrot iOS — TODO
 
-Status snapshot: first working Expo client, real backend chat, real Flow feed,
-real owner Brain research, real owner URL intake, centralised auth and API
-errors. TypeScript and iOS bundling pass.
+Status snapshot: 2026-11-02. Light-first mobile product with real backend
+chat, owner Brain, Flow, Dev, unified search, archive import/sync, decisions,
+theme switching and account controls. No EAS Build was run in this phase.
 
-## P0 — before calling this a build
+## Implemented in this phase
 
-- [ ] Replace the Expo template app icon and Android adaptive icon with a
-      Pierrot mark. `assets/expo.icon` and `assets/images/icon.png` are still
-      template assets.
-- [x] EAS project created (`@merkurov/pierrot-ios`, ID
-      `9344571a-c8d4-4737-b3b3-57c70d3ea6e5`). Public environment
-      variables are configured for development/preview/production.
-- [ ] Configure Apple Developer credentials and build the first iOS
-      development client interactively. EAS needs the Apple ID password and
-      2FA; this cannot be done headlessly.
-- [ ] Verify the Supabase email template actually includes
-      `{{ .Token }}`. The mobile sign-in asks for the 6-digit code, exactly like
-      `/login`; if the template only sends a magic link, add the token to the
-      template in the Supabase dashboard (no app change needed).
-- [ ] Test sign-in, token refresh and owner Brain against the production
-      Supabase project on a real iPhone and iPad.
-- [ ] Confirm the URL-intake confirmation flow against a disposable URL; verify
-      that `brain_url_status`, `brain_document_id` and `brain_run_id` appear.
-- [ ] Add app privacy strings / App Store privacy answers: chat content,
-      diagnostics, account email. No tracking SDK is used.
-- [ ] Run `npx expo start` on a physical device through Expo Go or a
-      development build and check keyboard behaviour on both form factors.
+- [x] Light / Dark / System theme, semantic palette and persisted preference.
+- [x] Backend-owned Pierrot avatar; remove “Digital Shadow”.
+- [x] User name/avatar in the sidebar and Settings.
+- [x] Existing bottom navigation preserved; Dev added as an additive tab.
+- [x] Project Pulse with conversations/Brain/Flow/subscribers and deterministic
+      status from `/api/mobile/overview`; no Visitors.
+- [x] Chat share, citations, retry reusing the original `userMessageId`,
+      local cache, rename/pin/delete.
+- [x] Explicit local-to-server archive import and owner-scoped sync for local
+      conversation IDs; consent-gated.
+- [x] Dev read-only GitHub repository tree, files, commits, diff and code
+      search; OpenCode prompt builder/history.
+- [x] Unified search from Chat with automatic/manual sources.
+- [x] Settings: theme, account, consent, local/server history, account
+      deletion, privacy/support, health, version.
+- [x] Email OTP, magic-link paste fallback, Google PKCE OAuth and native Sign
+      in with Apple code paths.
+- [x] Brain text import and basic Decision Memory UI.
+- [x] `tsc`, ESLint, Expo Doctor and iOS export pass.
 
-## P1 — highest-value product work
+## P0 — blockers before TestFlight
 
-- [ ] **Real streaming** for Pierrot chat. This needs a backend change:
-      add an SSE or `ReadableStream` variant of `/api/pierrot-web` that emits
-      deltas from each provider. Do not fake token streaming in the client.
-      Keep the existing JSON route for compatibility.
-- [ ] **Server-side conversation archive.** Requires a new authenticated
-      endpoint (for example `GET /api/pierrot/conversations` scoped to a
-      Supabase user). The current route only supports `DELETE`. Until then,
-      history stays local.
-- [ ] **Human takeover UI.** The mobile chat already recognises HTTP 409 with
-      `humanMode: true`, but does not yet send visitor messages through
-      `/api/pierrot/human/message` or poll `/api/pierrot/human/state`.
-      Implement only if this is a product requirement; it also needs a clear
-      privacy explanation because messages are relayed to Telegram.
-- [ ] **Brain ingestion on mobile.** The existing admin endpoints
-      (`/api/admin/brain/preview`, `/sources`, `/runs/*`) can support direct
-      URL/text/PDF/TXT intake. Current release only routes URLs through owner
-      Pierrot, which is the safer default.
-- [ ] **Knowledge Graph screen.** `getBrainGraph()` is already typed and
-      authenticated. Add a lightweight entity/relationship explorer without
-      duplicating the desktop graph canvas.
-- [ ] **Media Intelligence screen.** Use existing media retrieval through
-      chat first; only add a dedicated archive UI if the public media API is
-      confirmed stable for mobile.
-- [ ] Let the user delete the server-side transcript through the existing
-      `DELETE /api/pierrot/conversations` route when server consent was enabled.
-- [ ] Conversation rename and pinned conversations.
-- [ ] Message-level retry that reuses the same `userMessageId` and benefits
-      from the backend's idempotent replay, instead of appending a new user
-      turn.
+- [x] Replace Expo template icon/splash with generated Pierrot identity assets.
+- [ ] Configure Apple Developer credentials and build the first internal
+      preview build interactively. The dev-client profile was removed for
+      production cleanliness.
+- [ ] Enable Sign in with Apple for App ID `love.merkurov.pierrot` in Apple and
+      add the bundle ID to the Supabase Apple provider. Verify on a physical
+      device; `expo-apple-authentication` does not work in the simulator.
+- [x] Add `pierrot://auth/callback` and the current Expo Go redirect to
+      Supabase Auth redirect URLs (owner-configured 2026-11-02).
+- [ ] Verify Google OAuth end-to-end on a physical device and confirm that no
+      token appears in a URL/log.
+- [x] Add an email magic-link paste fallback that does not depend on a redirect
+      and can sign in when the email template contains only a link.
+- [ ] Add `{{ .Token }}` to the Supabase Magic Link template so the numeric
+      Email code path always works.
+- [ ] Enable/test passkeys only after a native WebAuthn plugin is validated.
+      Supabase passkeys are beta and the browser WebAuthn API cannot be copied
+      into React Native.
+- [ ] Add privacy policy and App Store privacy answers (account email, chat,
+      diagnostics, optional web search, GitHub metadata).
+- [ ] Verify the Supabase email template contains `{{ .Token }}`.
 
-## P2 — quality and platform
+## P1 — product gaps that require backend work
 
-- [ ] Add unit tests for Markdown parsing, API error mapping, conversation
-      persistence and auth refresh.
-- [ ] Add Detox or Maestro smoke tests for send-message, retry, sign-in and
-      Flow pagination.
-- [ ] Encrypt the local SQLite transcript at rest (SQLCipher or an encrypted
-      blob layer). The current file relies on iOS app-sandbox/file-protection.
-- [ ] Add Face ID / passcode gate for the app if transcripts are considered
-      highly sensitive.
-- [ ] Offline mode: queue outbound messages, show cached conversations and
-      reattempt when the connection returns.
-- [ ] Push notifications for human takeover or long-running Brain ingestion.
-- [ ] Deep links: `pierrot://flow/<slug>` and `pierrot://brain`.
-- [ ] Share sheet / file import for Brain sources.
-- [ ] Accessibility pass: Dynamic Type, VoiceOver labels for Markdown links,
-      focus order in the composer, Reduce Motion.
-- [ ] Localisation (EN/RU) for the interface. The backend already detects the
-      message language and answers in it.
-- [ ] iPad pointer/keyboard affordances and hardware keyboard shortcuts
-      (`⌘N` new conversation, `⌘↩` send).
-- [ ] Add a custom splash mark; the current splash is a black field only.
-- [ ] Add a subtle message-arrival animation, respecting Reduce Motion.
-- [ ] Verify rate-limit copy when several devices share one NAT/IP.
+- [ ] **Streaming chat.** Add an SSE/`ReadableStream` contract to
+      `/api/pierrot-web`; the current endpoint returns one JSON response.
+      Do not fake token streaming in the client.
+- [ ] **Cross-device continuation of server-only conversations.** The archive
+      read API intentionally does not expose `sessionId`; an iPhone can read a
+      server transcript but cannot append to it without a new owner-scoped
+      continuation endpoint. Implement `POST /api/mobile/conversations/:id/message`
+      (or equivalent) server-side before promising full two-device chat.
+- [x] **Decision Memory UI (basic).** “Remember” on a message saves a
+      user-confirmed decision; Settings → Decision memory lists/deletes entries.
+- [ ] Add candidate accept/reject and full status-history UI.
+- [x] **Brain text import.** Paste text → preview → explicit enqueue using the
+      existing Brain pipeline.
+- [ ] **Brain PDF/TXT import.** Add upload → preview → enqueue using
+      `expo-document-picker` and the existing
+      `/api/admin/brain/uploads|preview|sources` pipeline.
+- [ ] **Brain Knowledge Graph / Media UI.** Backend endpoints exist; add a
+      lightweight graph/media mode without copying the desktop admin.
+- [ ] **Search filters by date/type.** Backend currently accepts query/scopes;
+      add filter contract before adding UI controls.
+- [ ] **Full conversation transfer to Dev.** Current Dev prompt attaches the
+      active conversation and decisions, but the backend stores only the prompt
+      context (last 12 messages), not a full immutable conversation snapshot.
+      Add a `dev_conversation_transfers` contract if full preservation is
+      required.
+- [x] **Prompt result verification (basic).** Dev can show the latest diff and
+      mark a prompt verified.
+- [ ] Link a specific diff/commit to each prompt verification result.
+- [ ] **Account deletion re-authentication.** Current endpoint requires a
+      verified bearer and `confirm: "DELETE"`; add recent re-auth for stronger
+      account protection.
 
-## Backend-dependent, do not implement client-side
+## P2 — native capabilities not yet implemented
 
-- [ ] Streaming chat (requires server SSE/stream contract).
-- [ ] Reading server transcripts (requires an authenticated GET route).
-- [ ] Public Brain search (currently owner-only via admin gate).
-- [ ] Cross-device conversation sync (requires server archive + user scope).
-- [ ] Media/Graph write operations (admin-only by design).
+- [ ] iOS Share Extension for sending URL/text/PDF/files into Pierrot. The app
+      can share outgoing text via the system Share sheet; inbound Share
+      Extension requires a native target/config plugin and a documented
+      entitlement.
+- [ ] Files import and camera document capture. Requires file upload and a
+      deliberate server contract; do not add a mock upload button.
+- [ ] Voice input / voice conversation. Requires speech permissions and a
+      verified server model/streaming contract; no second AI backend.
+- [ ] Hardware keyboard shortcuts and command palette.
+- [ ] Home Screen Widget for Project Pulse (WidgetKit extension; no background
+      polling).
+- [ ] Push notifications for important events (APNs key, device-token table and
+      a server send path; opt-in only).
+- [ ] Universal links beyond the `pierrot://` scheme.
+- [ ] Encrypt SQLite at rest (SQLCipher or encrypted blob layer).
+- [ ] Face ID app lock if transcripts are considered highly sensitive.
+- [ ] Offline outbound queue for chat (currently failed messages remain visible
+      and retry works, but there is no queued automatic send).
+- [ ] Detox/Maestro E2E tests; unit coverage for Markdown and storage.
 
-## Explicit non-goals for this release
+## Backend dependencies
 
-- Reimplementing Gemini/DeepSeek fallback in the app.
-- Embedding provider keys or a Supabase service-role key.
-- Creating a second Supabase project or database.
-- Copying the website's server-side commercial prompt or RAG pipeline into
-  React Native.
-- Building the full admin surface on mobile.
-- Replacing the website's auth model with a custom token scheme.
+- [ ] Apply the three `2026-11-12_*` migrations before using archive/decisions/
+      Dev. The code returns `503 ..._not_ready` until they exist.
+- [ ] Configure `GITHUB_READ_TOKEN` and `GITHUB_ALLOWED_REPOS` server-side.
+- [ ] Optional `BRAVE_SEARCH_API_KEY` / `TAVILY_API_KEY`.
+- [ ] Keep `PIERROT_RAG_ENABLED=true` and OpenRouter embeddings configured for
+      owner Brain/Media search.
+
+## Explicit non-goals
+
+- No second AI backend, RAG, database or Supabase project.
+- No provider/service-role keys in the app.
+- No fake streaming, fake metrics or placeholder production screens.
+- No GitHub writes, push, commit or merge from the app.

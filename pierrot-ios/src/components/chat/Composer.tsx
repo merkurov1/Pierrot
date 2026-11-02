@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 
 import { PIERROT_MAX_MESSAGE_LENGTH } from '@/api/pierrot';
-import { fonts, palette, radius, spacing } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/theme/ThemeContext';
+import { fonts, radius, spacing, ThemeColors } from '@/constants/theme';
 
 type Props = {
   value: string;
@@ -20,6 +21,8 @@ type Props = {
 };
 
 export function Composer({ value, onChangeText, onSend, disabled, sending }: Props) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const canSend = value.trim().length > 0 && !disabled && !sending;
   const showCounter = value.length > PIERROT_MAX_MESSAGE_LENGTH - 400;
 
@@ -30,8 +33,8 @@ export function Composer({ value, onChangeText, onSend, disabled, sending }: Pro
           value={value}
           onChangeText={onChangeText}
           placeholder="Message Pierrot"
-          placeholderTextColor={palette.textFaint}
-          selectionColor={palette.textSecondary}
+          placeholderTextColor={colors.textFaint}
+          selectionColor={colors.textSecondary}
           keyboardAppearance="dark"
           multiline
           maxLength={PIERROT_MAX_MESSAGE_LENGTH}
@@ -49,7 +52,7 @@ export function Composer({ value, onChangeText, onSend, disabled, sending }: Pro
             pressed && canSend && styles.sendPressed,
           ]}>
           {sending ? (
-            <ActivityIndicator size="small" color={palette.inverseText} />
+            <ActivityIndicator size="small" color={colors.inverseText} />
           ) : (
             <Text style={styles.sendGlyph}>↑</Text>
           )}
@@ -65,11 +68,12 @@ export function Composer({ value, onChangeText, onSend, disabled, sending }: Pro
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => {
+  return StyleSheet.create({
   root: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: palette.line,
-    backgroundColor: palette.background,
+    borderTopColor: colors.line,
+    backgroundColor: colors.background,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
@@ -87,10 +91,10 @@ const styles = StyleSheet.create({
     minHeight: 42,
     maxHeight: 132,
     borderRadius: radius.lg,
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: palette.line,
-    color: palette.text,
+    borderColor: colors.line,
+    color: colors.text,
     fontFamily: fonts.sans,
     fontSize: 16,
     lineHeight: 22,
@@ -102,18 +106,18 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: palette.text,
+    backgroundColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sendDisabled: {
-    backgroundColor: palette.surfaceActive,
+    backgroundColor: colors.surfaceActive,
   },
   sendPressed: {
     opacity: 0.75,
   },
   sendGlyph: {
-    color: palette.inverseText,
+    color: colors.inverseText,
     fontSize: 19,
     lineHeight: 22,
     marginTop: -1,
@@ -126,6 +130,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontFamily: fonts.mono,
     fontSize: 9,
-    color: palette.textFaint,
+    color: colors.textFaint,
   },
-});
+  });
+};

@@ -23,6 +23,9 @@ type ChatContextValue = {
     messageId: string,
     patch: Partial<ChatMessage>
   ) => void;
+  renameConversation: (conversationId: string, title: string) => void;
+  setPinned: (conversationId: string, pinned: boolean) => void;
+  upsertConversation: (conversation: Conversation) => void;
   removeMessage: (conversationId: string, messageId: string) => void;
   deleteConversation: (id: string) => void;
   clearConversations: () => void;
@@ -106,6 +109,38 @@ export function ChatProvider({ children }: React.PropsWithChildren) {
     []
   );
 
+  const renameConversation = React.useCallback((conversationId: string, title: string) => {
+    setConversations((current) => {
+      const conversation = current.find((item) => item.id === conversationId);
+      if (!conversation) return current;
+      const next: Conversation = {
+        ...conversation,
+        title: title.trim().slice(0, 120) || conversation.title,
+        updatedAt: new Date().toISOString(),
+      };
+      saveConversation(next);
+      return [next, ...current.filter((item) => item.id !== conversationId)];
+    });
+  }, []);
+
+  const setPinned = React.useCallback((conversationId: string, pinned: boolean) => {
+    setConversations((current) => {
+      const conversation = current.find((item) => item.id === conversationId);
+      if (!conversation) return current;
+      const next: Conversation = { ...conversation, pinned, updatedAt: new Date().toISOString() };
+      saveConversation(next);
+      return [next, ...current.filter((item) => item.id !== conversationId)];
+    });
+  }, []);
+
+  const upsertConversation = React.useCallback((conversation: Conversation) => {
+    setConversations((current) => {
+      const next = [conversation, ...current.filter((item) => item.id !== conversation.id)];
+      saveConversation(conversation);
+      return next;
+    });
+  }, []);
+
   const removeMessage = React.useCallback((conversationId: string, messageId: string) => {
     setConversations((current) => {
       const conversation = current.find((item) => item.id === conversationId);
@@ -151,6 +186,9 @@ export function ChatProvider({ children }: React.PropsWithChildren) {
       createConversation,
       appendMessage,
       updateMessage,
+      renameConversation,
+      setPinned,
+      upsertConversation,
       removeMessage,
       deleteConversation,
       clearConversations,
@@ -163,6 +201,9 @@ export function ChatProvider({ children }: React.PropsWithChildren) {
       createConversation,
       appendMessage,
       updateMessage,
+      renameConversation,
+      setPinned,
+      upsertConversation,
       removeMessage,
       deleteConversation,
       clearConversations,

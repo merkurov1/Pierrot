@@ -6,21 +6,12 @@
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "pierrot",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#050505",
-    "ios": {
-      "icon": "./assets/expo.icon",
-      "supportsTablet": true,
-      "bundleIdentifier": "love.merkurov.pierrot",
-      "buildNumber": "1",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
-    },
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#FAF8F5",
     "android": {
       "package": "love.merkurov.pierrot",
       "adaptiveIcon": {
-        "backgroundColor": "#050505",
+        "backgroundColor": "#080808",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -36,14 +27,19 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#050505",
+          "backgroundColor": "#FAF8F5",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 160,
           "dark": {
-            "backgroundColor": "#050505"
+            "backgroundColor": "#080808",
+            "image": "./assets/images/splash-icon.png",
+            "imageWidth": 160
           }
         }
       ],
       "expo-secure-store",
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -59,9 +55,21 @@
         "projectId": "9344571a-c8d4-4737-b3b3-57c70d3ea6e5"
       }
     },
-    "owner": "merkurov"
-  },
-  "cli": {
-    "appVersionSource": "remote"
+    "owner": "merkurov",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "love.merkurov.pierrot",
+      "buildNumber": "1",
+      "deploymentTarget": "16.0",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIViewControllerBasedStatusBarAppearance": false
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": []
+      }
+    }
   }
 }

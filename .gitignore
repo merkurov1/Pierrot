@@ -1,0 +1,10 @@
+# Local-only helper files (tunnel URLs, QR codes, redirect cheatsheets,
+# duplicated migration copies). Never commit credentials or temporary output.
+OPEN_APP.txt
+OPEN_APP_QR.png
+SUPABASE_REDIRECTS.txt
+AUTH_SETUP.txt
+BACKEND_MIGRATIONS_2026-11-12.sql
+
+# OS / editor
+.DS_Store

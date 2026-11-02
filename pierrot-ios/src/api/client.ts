@@ -11,7 +11,7 @@ export type ApiErrorCode =
   | 'AUTH_NOT_CONFIGURED';
 
 type RequestOptions = {
-  method?: 'GET' | 'POST' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   token?: string | null;
   signal?: AbortSignal;

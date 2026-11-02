@@ -1,18 +1,23 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useTheme, useThemedStyles } from '@/theme/ThemeContext';
 
-import { palette, spacing, type } from '@/constants/theme';
+import { spacing, typography, ThemeColors } from '@/constants/theme';
 
 export function TypingIndicator({ label = 'Thinking' }: { label?: string }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   return (
     <View style={styles.root}>
-      <ActivityIndicator size="small" color={palette.textMuted} />
+      <ActivityIndicator size="small" color={colors.textMuted} />
       <Text style={styles.label}>{label}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => {
+  const type = typography(colors);
+  return StyleSheet.create({
   root: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -21,7 +26,8 @@ const styles = StyleSheet.create({
   },
   label: {
     ...type.meta,
-    color: palette.textMuted,
+    color: colors.textMuted,
     letterSpacing: 0.6,
   },
-});
+  });
+};

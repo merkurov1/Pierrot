@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { friendlyApiMessage } from '@/api/client';
+import { useTheme, useThemedStyles } from '@/theme/ThemeContext';
 import { getFlowItems } from '@/api/flow';
 import type { FlowItem } from '@/api/types';
 import { FlowCard } from '@/components/flow/FlowCard';
@@ -17,11 +18,13 @@ import { ActionButton } from '@/components/ui/ActionButton';
 import { Notice } from '@/components/ui/Notice';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Screen } from '@/components/ui/Screen';
-import { palette, spacing, type } from '@/constants/theme';
+import { spacing, typography, ThemeColors } from '@/constants/theme';
 
 const PAGE_SIZE = 12;
 
 export default function FlowScreen() {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const { width } = useWindowDimensions();
   const columns = width >= 1180 ? 3 : width >= 760 ? 2 : 1;
 
@@ -126,7 +129,7 @@ export default function FlowScreen() {
         ListEmptyComponent={
           loading ? (
             <View style={styles.loading}>
-              <ActivityIndicator size="small" color={palette.textMuted} />
+              <ActivityIndicator size="small" color={colors.textMuted} />
               <Text style={styles.loadingText}>Loading Flow</Text>
             </View>
           ) : !error ? (
@@ -136,7 +139,7 @@ export default function FlowScreen() {
         ListFooterComponent={
           loadingMore ? (
             <View style={styles.footerLoading}>
-              <ActivityIndicator size="small" color={palette.textMuted} />
+              <ActivityIndicator size="small" color={colors.textMuted} />
             </View>
           ) : items.length > 0 && !hasMore ? (
             <Text style={styles.end}>End of the stream.</Text>
@@ -148,7 +151,7 @@ export default function FlowScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => void load('refresh')}
-            tintColor={palette.textMuted}
+            tintColor={colors.textMuted}
           />
         }
         onEndReached={() => void load('more')}
@@ -159,7 +162,9 @@ export default function FlowScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => {
+  const type = typography(colors);
+  return StyleSheet.create({
   content: {
     width: '100%',
     maxWidth: 1200,
@@ -177,11 +182,11 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     ...type.meta,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   empty: {
     ...type.bodySmall,
-    color: palette.textMuted,
+    color: colors.textMuted,
     paddingVertical: spacing.xl,
   },
   footerLoading: {
@@ -190,8 +195,9 @@ const styles = StyleSheet.create({
   },
   end: {
     ...type.meta,
-    color: palette.textFaint,
+    color: colors.textFaint,
     textAlign: 'center',
     paddingVertical: spacing.xl,
   },
-});
+  });
+};
