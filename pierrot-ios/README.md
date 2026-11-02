@@ -90,6 +90,7 @@ npx expo export --platform ios --output-dir dist-ios
 
 ## Documentation
 
+- [HOW_TO_USE.md](./HOW_TO_USE.md) — how to open and use the app in Expo Go.
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — backend/API map, auth, archive,
   decisions, search, Dev, native constraints and security decisions.
 - [PIERROT_PRODUCT_IMPLEMENTATION_PLAN.md](./PIERROT_PRODUCT_IMPLEMENTATION_PLAN.md)

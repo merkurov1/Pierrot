@@ -43,6 +43,8 @@ first build. Do not commit credentials.
 
 ## Documentation
 
+- [`pierrot-ios/HOW_TO_USE.md`](./pierrot-ios/HOW_TO_USE.md) — how to open and
+  use the app in Expo Go.
 - [`pierrot-ios/README.md`](./pierrot-ios/README.md)
 - [`pierrot-ios/ARCHITECTURE.md`](./pierrot-ios/ARCHITECTURE.md)
 - [`pierrot-ios/TODO.md`](./pierrot-ios/TODO.md)
