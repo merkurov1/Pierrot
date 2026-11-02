@@ -13,6 +13,7 @@ import {
 } from '@/api/mobile';
 import { useAuth } from '@/auth/AuthContext';
 import { useChat } from '@/chat/ChatContext';
+import { useMobileBackend } from '@/mobile/MobileBackendContext';
 import type { Conversation } from '@/chat/types';
 import { ProjectPulse } from '@/components/chat/ProjectPulse';
 import { Screen } from '@/components/ui/Screen';
@@ -31,6 +32,7 @@ export default function HistoryScreen() {
     upsertConversation,
   } = useChat();
   const { session, consent, getAccessToken } = useAuth();
+  const { available: ownerFeatures } = useMobileBackend();
   const params = useLocalSearchParams<{ conversation?: string }>();
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -202,12 +204,22 @@ export default function HistoryScreen() {
           <Pressable accessibilityRole="button" onPress={create} hitSlop={8}>
             <Text style={styles.action}>New</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => void syncFromServer()} hitSlop={8}>
-            <Text style={styles.action}>{busy ? 'Working…' : 'Sync'}</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => void importToServer()} hitSlop={8}>
-            <Text style={styles.action}>Import</Text>
-          </Pressable>
+          {ownerFeatures ? (
+            <>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void syncFromServer()}
+                hitSlop={8}>
+                <Text style={styles.action}>{busy ? 'Working…' : 'Sync'}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void importToServer()}
+                hitSlop={8}>
+                <Text style={styles.action}>Import</Text>
+              </Pressable>
+            </>
+          ) : null}
           <Text style={styles.count}>
             {conversations.length} {conversations.length === 1 ? 'thread' : 'threads'}
           </Text>

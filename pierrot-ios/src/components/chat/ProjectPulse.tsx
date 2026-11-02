@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import { useAuth } from '@/auth/AuthContext';
 import { useProjectStatus } from '@/hooks/useProjectStatus';
+import { useMobileBackend } from '@/mobile/MobileBackendContext';
 import { formatRelative } from '@/lib/format';
 import { fonts, spacing, typography, type ThemeColors } from '@/constants/theme';
 import { useTheme, useThemedStyles } from '@/theme/ThemeContext';
@@ -15,11 +16,12 @@ function valueOrDash(value: number | null): string {
 
 export function ProjectPulse({ compact = false }: { compact?: boolean }) {
   const { isAdmin, session } = useAuth();
+  const { available } = useMobileBackend();
   const { colors } = useTheme();
   const styles = useThemedStyles(makeStyles);
   const { data, loading, error, refresh } = useProjectStatus();
 
-  if (!session || !isAdmin) return null;
+  if (!available || !session || !isAdmin) return null;
 
   const metrics: Metric[] = [
     { label: 'Conversations · 7d', value: data?.metrics.conversations7d ?? null },

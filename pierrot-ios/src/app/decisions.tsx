@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { friendlyApiMessage } from '@/api/client';
 import { deleteDecision, listDecisions, type Decision } from '@/api/mobile';
 import { useAuth } from '@/auth/AuthContext';
+import { useMobileBackend } from '@/mobile/MobileBackendContext';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { Notice } from '@/components/ui/Notice';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -16,6 +17,7 @@ export default function DecisionsScreen() {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const { session, isAdmin, getAccessToken } = useAuth();
+  const { available } = useMobileBackend();
   const [items, setItems] = React.useState<Decision[]>([]);
   const [busy, setBusy] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -68,6 +70,29 @@ export default function DecisionsScreen() {
       },
     ]);
   };
+
+  if (!available) {
+    return (
+      <Screen bottomInset>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <PageHeader
+            eyebrow="Memory"
+            title="Decisions"
+            subtitle="User-confirmed decisions, positions, preferences, constraints and tasks."
+            action={
+              <Pressable onPress={() => router.back()} hitSlop={8}>
+                <Text style={styles.link}>Close</Text>
+              </Pressable>
+            }
+          />
+          <Notice
+            title="Not available yet"
+            message="Decision Memory is hidden until the server update is available. Chat, Flow and Brain work independently."
+          />
+        </ScrollView>
+      </Screen>
+    );
+  }
 
   return (
     <Screen bottomInset>

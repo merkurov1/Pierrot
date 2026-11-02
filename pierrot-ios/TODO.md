@@ -24,6 +24,8 @@ theme switching and account controls. No EAS Build was run in this phase.
 - [x] Email OTP, magic-link paste fallback, Google PKCE OAuth and native Sign
       in with Apple code paths.
 - [x] Brain text import and basic Decision Memory UI.
+- [x] Automatic `/api/mobile/*` availability probe: owner-only surfaces are
+      hidden when the route set is missing or not ready, instead of showing 404.
 - [x] `tsc`, ESLint, Expo Doctor and iOS export pass.
 
 ## P0 — blockers before TestFlight
@@ -109,7 +111,8 @@ theme switching and account controls. No EAS Build was run in this phase.
 ## Backend dependencies
 
 - [ ] Apply the three `2026-11-12_*` migrations before using archive/decisions/
-      Dev. The code returns `503 ..._not_ready` until they exist.
+      Dev. The code returns `503 ..._not_ready` until they exist. Until then the
+      mobile app hides those surfaces automatically.
 - [ ] Configure `GITHUB_READ_TOKEN` and `GITHUB_ALLOWED_REPOS` server-side.
 - [ ] Optional `BRAVE_SEARCH_API_KEY` / `TAVILY_API_KEY`.
 - [ ] Keep `PIERROT_RAG_ENABLED=true` and OpenRouter embeddings configured for

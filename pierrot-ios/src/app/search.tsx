@@ -18,6 +18,7 @@ import {
   type UnifiedSearchResult,
 } from '@/api/mobile';
 import { useAuth } from '@/auth/AuthContext';
+import { useMobileBackend } from '@/mobile/MobileBackendContext';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { Notice } from '@/components/ui/Notice';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -41,6 +42,7 @@ export default function SearchScreen() {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const { session, isAdmin, getAccessToken } = useAuth();
+  const { available } = useMobileBackend();
   const [query, setQuery] = React.useState('');
   const [auto, setAuto] = React.useState(true);
   const [selected, setSelected] = React.useState<SearchScope[]>([]);
@@ -94,6 +96,25 @@ export default function SearchScreen() {
     if (item.scope === 'brain') router.replace('/brain');
     if (item.scope === 'github') router.replace('/dev');
   };
+
+  if (!available) {
+    return (
+      <Screen>
+        <ScrollView contentContainerStyle={styles.content}>
+          <PageHeader
+            eyebrow="Retrieval"
+            title="Search"
+            subtitle="Web, Brain, Media, conversations, decisions and GitHub."
+          />
+          <Notice
+            title="Not available yet"
+            message="Unified search is hidden until the server update is available. Chat, Flow and Brain work independently."
+          />
+          <ActionButton label="Close" variant="outline" onPress={() => router.back()} />
+        </ScrollView>
+      </Screen>
+    );
+  }
 
   if (!session || !isAdmin) {
     return (

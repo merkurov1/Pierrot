@@ -28,6 +28,25 @@ Light is the default. System and dark modes are available in Settings.
 Pierrot uses the backend-owned avatar, and all navigation remains in the
 existing bottom tab system; Dev is an additive fifth tab.
 
+## Server availability
+
+Chat (`POST /api/pierrot-web`), Flow and the owner Brain endpoints already run
+on the existing `merkurov.love` server, so no backend deployment is needed for
+those surfaces.
+
+The extra `/api/mobile/*` routes are a later deployment. The app probes
+`/api/mobile/overview` on launch and when it becomes active:
+
+- if the routes exist and are protected (`401/403`), Dev, Search, Decisions,
+  Project Pulse, server archive sync and account deletion are shown;
+- if the routes are missing (`404`) or not ready (`5xx`), those owner-only
+  surfaces are hidden instead of showing broken screens. Chat, Flow, Brain,
+  theme, local history and sign-out keep working.
+
+No rebuild is required when the server update is deployed: use
+Settings → Connection → **Recheck owner tools** (or relaunch the app).
+
+
 ## Run
 
 ```bash

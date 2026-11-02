@@ -3,6 +3,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { getProjectStatus, type ProjectStatus } from '@/api/mobile';
 import { useAuth } from '@/auth/AuthContext';
+import { useMobileBackend } from '@/mobile/MobileBackendContext';
 
 type State = {
   data: ProjectStatus | null;
@@ -17,6 +18,7 @@ type State = {
  */
 export function useProjectStatus(): State {
   const { session, isAdmin, getAccessToken } = useAuth();
+  const { available } = useMobileBackend();
   const [data, setData] = React.useState<ProjectStatus | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -24,7 +26,7 @@ export function useProjectStatus(): State {
 
   const load = React.useCallback(
     async (force = false) => {
-      if (!session || !isAdmin) {
+      if (!session || !isAdmin || !available) {
         setData(null);
         setError(null);
         return;
@@ -50,7 +52,7 @@ export function useProjectStatus(): State {
         if (mounted.current) setLoading(false);
       }
     },
-    [getAccessToken, isAdmin, session]
+    [available, getAccessToken, isAdmin, session]
   );
 
   React.useEffect(() => {

@@ -34,6 +34,7 @@ import {
 } from '@/api/mobile';
 import { useAuth } from '@/auth/AuthContext';
 import { useChat } from '@/chat/ChatContext';
+import { useMobileBackend } from '@/mobile/MobileBackendContext';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { Notice } from '@/components/ui/Notice';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -49,6 +50,7 @@ export default function DevScreen() {
   const { colors } = useTheme();
   const { status, isAdmin, getAccessToken } = useAuth();
   const { activeConversation } = useChat();
+  const { available } = useMobileBackend();
 
   const [repos, setRepos] = React.useState<GitHubRepository[]>([]);
   const [repo, setRepo] = React.useState<GitHubRepository | null>(null);
@@ -235,6 +237,24 @@ export default function DevScreen() {
       setBusy(null);
     }
   };
+
+  if (!available) {
+    return (
+      <Screen>
+        <ScrollView contentContainerStyle={styles.content}>
+          <PageHeader
+            eyebrow="Workspace"
+            title="Dev"
+            subtitle="Read-only GitHub, OpenCode prompts and decision context."
+          />
+          <Notice
+            title="Not available yet"
+            message="Dev is hidden until the server update is available. Chat, Flow and Brain work independently."
+          />
+        </ScrollView>
+      </Screen>
+    );
+  }
 
   if (status === 'loading') {
     return (

@@ -34,6 +34,10 @@ now additionally includes:
   WebAuthn plugin (documented in `TODO.md`).
 - Account/session controls, server-history deletion, account deletion, privacy
   and support information.
+- Runtime capability probe: if `/api/mobile/*` is missing (`404`) or not ready
+  (`5xx`), owner-only surfaces are hidden rather than showing broken screens.
+  Chat, Flow and Brain remain fully usable against the existing production
+  server.
 
 Known limits are recorded in `TODO.md`: streaming is not available on the
 backend; server-only conversations cannot be continued on another device until

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useThemedStyles } from '@/theme/ThemeContext';
+import { useMobileBackend } from '@/mobile/MobileBackendContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fonts, layout, spacing, ThemeColors } from '@/constants/theme';
@@ -27,11 +28,14 @@ const LABELS: Record<string, string> = {
 export function AppTabBar({ state, descriptors, emitter, navigateToTab }: TabBarProps) {
   const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
+  const { available } = useMobileBackend();
 
   return (
     <View style={[styles.root, { paddingBottom: Math.max(insets.bottom, spacing.xs) }]}>
       <View style={styles.inner}>
         {state.routes.map((route, index) => {
+          if (route.name === 'dev' && !available) return null;
+
           const focused = state.index === index;
           const options = descriptors[route.key]?.options;
           const label =

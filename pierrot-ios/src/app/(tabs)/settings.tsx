@@ -24,6 +24,7 @@ import { deleteAccount, deleteServerConversation, listServerConversations } from
 import type { HealthResponse } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { useChat } from '@/chat/ChatContext';
+import { useMobileBackend } from '@/mobile/MobileBackendContext';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { Avatar } from '@/components/ui/Avatar';
 import { Notice, Rule } from '@/components/ui/Notice';
@@ -98,6 +99,12 @@ export default function SettingsScreen() {
     getAccessToken,
   } = useAuth();
   const { conversations, clearConversations } = useChat();
+  const {
+    available: ownerFeatures,
+    checking: ownerChecking,
+    checkedAt: ownerCheckedAt,
+    refresh: refreshOwnerFeatures,
+  } = useMobileBackend();
 
   const [email, setEmail] = React.useState('');
   const [code, setCode] = React.useState('');
@@ -352,18 +359,26 @@ export default function SettingsScreen() {
                     onPress={() => void refreshMe()}
                   />
                   <ActionButton label="Sign out" variant="quiet" onPress={confirmSignOut} />
-                  <ActionButton
-                    label={accountBusy ? 'Working' : 'Delete account'}
-                    variant="quiet"
-                    onPress={confirmDeleteAccount}
-                    disabled={accountBusy}
-                  />
+                  {ownerFeatures ? (
+                    <ActionButton
+                      label={accountBusy ? 'Working' : 'Delete account'}
+                      variant="quiet"
+                      onPress={confirmDeleteAccount}
+                      disabled={accountBusy}
+                    />
+                  ) : null}
                 </View>
 
                 <Text style={styles.help}>
                   The app uses the same Supabase account and email code as merkurov.love.
                   Authentication tokens are kept in the iOS Keychain.
                 </Text>
+                {!ownerChecking && !ownerFeatures ? (
+                  <Text style={styles.help}>
+                    Account deletion and the extra owner tools are hidden until the server
+                    update is available. Signing out and local history still work.
+                  </Text>
+                ) : null}
               </>
             ) : !authConfigured ? (
               <Notice
@@ -538,6 +553,35 @@ export default function SettingsScreen() {
               />
             </View>
             <ValueRow
+              label="Owner tools"
+              value={
+                ownerChecking
+                  ? 'Checking…'
+                  : ownerFeatures
+                    ? 'Available'
+                    : 'Hidden until server update'
+              }
+              tone={ownerFeatures ? 'ok' : undefined}
+            />
+            {ownerCheckedAt ? (
+              <Text style={styles.help}>
+                Owner tools checked{' '}
+                {ownerCheckedAt.toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+                . Chat, Flow and Brain work independently.
+              </Text>
+            ) : null}
+            <View style={styles.buttonRow}>
+              <ActionButton
+                label={ownerChecking ? 'Checking' : 'Recheck owner tools'}
+                variant="quiet"
+                onPress={() => void refreshOwnerFeatures()}
+                loading={ownerChecking}
+              />
+            </View>
+            <ValueRow
               label="State"
               value={
                 healthBusy
@@ -620,22 +664,26 @@ export default function SettingsScreen() {
             </Text>
 
             <View style={styles.buttonRow}>
-              <ActionButton
-                label="Decision memory"
-                variant="outline"
-                onPress={() => router.push('/decisions')}
-              />
+              {ownerFeatures ? (
+                <ActionButton
+                  label="Decision memory"
+                  variant="outline"
+                  onPress={() => router.push('/decisions')}
+                />
+              ) : null}
               <ActionButton
                 label="Clear local conversations"
                 variant="outline"
                 onPress={confirmClear}
               />
-              <ActionButton
-                label={accountBusy ? 'Working' : 'Delete server history'}
-                variant="outline"
-                onPress={() => void deleteServerHistory()}
-                disabled={accountBusy}
-              />
+              {ownerFeatures ? (
+                <ActionButton
+                  label={accountBusy ? 'Working' : 'Delete server history'}
+                  variant="outline"
+                  onPress={() => void deleteServerHistory()}
+                  disabled={accountBusy}
+                />
+              ) : null}
             </View>
           </Section>
 

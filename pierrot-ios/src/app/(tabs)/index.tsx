@@ -20,6 +20,7 @@ import { createDecision } from '@/api/mobile';
 import type { PierrotHistoryItem } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
 import { useChat } from '@/chat/ChatContext';
+import { useMobileBackend } from '@/mobile/MobileBackendContext';
 import type { ChatMessage } from '@/chat/types';
 import { Composer } from '@/components/chat/Composer';
 import { ConversationSidebar } from '@/components/chat/ConversationSidebar';
@@ -50,7 +51,7 @@ function buildHistory(messages: ChatMessage[]): PierrotHistoryItem[] {
     }));
 }
 
-function ChatHeader({ compact }: { compact: boolean }) {
+function ChatHeader({ compact, showSearch }: { compact: boolean; showSearch: boolean }) {
   const styles = useThemedStyles(makeStyles);
   const { activeConversation, startNewConversation } = useChat();
   const { isAdmin, session } = useAuth();
@@ -68,12 +69,14 @@ function ChatHeader({ compact }: { compact: boolean }) {
       </View>
 
       <View style={styles.headerActions}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/search')}
-          hitSlop={8}>
-          <Text style={styles.headerAction}>Search</Text>
-        </Pressable>
+        {showSearch ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/search')}
+            hitSlop={8}>
+            <Text style={styles.headerAction}>Search</Text>
+          </Pressable>
+        ) : null}
         <Pressable accessibilityRole="button" onPress={startNewConversation} hitSlop={8}>
           <Text style={styles.headerAction}>New</Text>
         </Pressable>
@@ -128,6 +131,7 @@ function ChatPane({ compact }: { compact: boolean }) {
     removeMessage,
   } = useChat();
   const { consent, getAccessToken, isAdmin } = useAuth();
+  const { available } = useMobileBackend();
 
   const [draft, setDraft] = React.useState('');
   const [sending, setSending] = React.useState(false);
@@ -340,7 +344,7 @@ function ChatPane({ compact }: { compact: boolean }) {
     <KeyboardAvoidingView
       style={styles.pane}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ChatHeader compact={compact} />
+      <ChatHeader compact={compact} showSearch={available} />
 
       <FlatList
         ref={listRef}
@@ -352,8 +356,8 @@ function ChatPane({ compact }: { compact: boolean }) {
             onRetry={() => {
               void retry(item);
             }}
-            onSendToDev={isAdmin ? () => router.push('/dev') : undefined}
-            onRemember={isAdmin ? () => void remember(item) : undefined}
+            onSendToDev={isAdmin && available ? () => router.push('/dev') : undefined}
+            onRemember={isAdmin && available ? () => void remember(item) : undefined}
           />
         )}
         ListEmptyComponent={<EmptyConversation onPrompt={(text) => void send(text)} />}
